@@ -1,0 +1,180 @@
+import type { AdminState, Persona, Product, ReportType } from "./types";
+
+export const ASSETS = {
+  logo: "/assets/website-Logo.png",
+  hero: "/assets/hair-hero-user6-transparent.png",
+  heroAlt: "/assets/hair-hero-user.png",
+  user3: "/assets/hair-hero-user3.png",
+  french: "/assets/hair-style-french-v2.png",
+  wave: "/assets/hair-style-wave-v2.png",
+  layer: "/assets/hair-style-layer-v2.png",
+  bob: "/assets/hair-style-bob-v2.png",
+  air: "/assets/hair-style-air-v2.png",
+  color: "/assets/icon-color-style.png",
+  coupon: "/assets/icon-coupon.png",
+  hot: "/assets/icon-hot-style.png",
+  love: "/assets/icon-love-style.png",
+  match: "/assets/icon-match-style.png",
+  poster: "/assets/hair-poster-sprite-v2.png",
+  shape: "/assets/shapelab-beauty-sprite.png",
+};
+
+export const DEFAULT_PRODUCTS: Product[] = [
+  {
+    id: "single",
+    name: "单次专题报告券",
+    price: 1.9,
+    description: "任选 1 个专题，生成 1 张长图报告",
+    rights: { topic: 1, comprehensive: 0 },
+    tags: ["发型发色", "色彩妆容", "穿搭配饰", "场景 Look"],
+    bullets: ["核心维度深度分析", "专业建议 + 参考示例", "长图报告，清晰易读", "适合先试一个方向"],
+    purchaseLink: "",
+    enabled: true,
+    sort: 1,
+  },
+  {
+    id: "triple",
+    name: "三次探索卡",
+    price: 4.9,
+    originalPrice: 5.7,
+    badge: "推荐",
+    description: "可生成 3 张专题报告，随心探索不同风格",
+    rights: { topic: 3, comprehensive: 0 },
+    tags: ["3 张专题", "性价比更高", "多方向探索"],
+    bullets: ["3 张不同专题报告", "更全面的维度解读", "更多风格建议参考", "同一张照片可继续探索"],
+    purchaseLink: "",
+    enabled: true,
+    sort: 2,
+  },
+  {
+    id: "full",
+    name: "全案探索卡",
+    price: 9.9,
+    originalPrice: 15.6,
+    badge: "最完整",
+    description: "综合形象报告 ×1 + 专题报告 ×3",
+    rights: { topic: 3, comprehensive: 1 },
+    tags: ["综合报告", "专题 ×3", "全案专享"],
+    bullets: ["综合 + 3 张专题报告", "个人专属形象定位", "全维度分析", "最完整形象方案"],
+    purchaseLink: "",
+    enabled: true,
+    sort: 3,
+  },
+];
+
+export const REPORT_TYPES: ReportType[] = [
+  {
+    id: "comprehensive",
+    name: "综合形象报告",
+    subtitle: "全案专享，全方位解析你的个人形象",
+    rightKey: "comprehensive",
+    tags: ["发型发色", "色彩妆容", "穿搭配饰", "场景 Look"],
+    modules: ["发型", "发色", "色彩", "妆容", "穿搭", "配饰", "场景建议"],
+    asset: ASSETS.poster,
+  },
+  {
+    id: "hair",
+    name: "发型发色专题",
+    subtitle: "找到更适合你的发型、刘海、卷度和发色",
+    rightKey: "topic",
+    tags: ["发型推荐", "发色质感", "理发师关键词"],
+    modules: ["脸部轮廓", "发质状态", "推荐发型", "发色建议", "刘海长度", "打理难度"],
+    asset: ASSETS.french,
+  },
+  {
+    id: "makeup",
+    name: "色彩妆容专题",
+    subtitle: "找到你的专属提气色色盘和妆容方向",
+    rightKey: "topic",
+    tags: ["色盘", "口红", "腮红", "眼妆"],
+    modules: ["冷暖倾向", "推荐色盘", "底妆", "眉形", "眼妆", "唇色"],
+    asset: ASSETS.color,
+  },
+  {
+    id: "outfit",
+    name: "穿搭配饰专题",
+    subtitle: "穿出风格，提升气质，明确单品选择",
+    rightKey: "topic",
+    tags: ["服装", "鞋包", "首饰", "OOTD"],
+    modules: ["风格定位", "服装颜色", "推荐单品", "配饰建议", "OOTD 灵感"],
+    asset: ASSETS.love,
+  },
+  {
+    id: "look",
+    name: "场景 Look 专题",
+    subtitle: "不同场景轻松变美，日常、通勤、拍照都能用",
+    rightKey: "topic",
+    tags: ["日常", "通勤", "拍照", "聚会"],
+    modules: ["日常 Look", "通勤 Look", "拍照 Look", "聚会 Look", "对比表"],
+    asset: ASSETS.hot,
+  },
+];
+
+export const PERSONAS: Record<string, Persona> = {
+  softFrench: {
+    id: "softFrench",
+    title: "轻法式白月光",
+    reportTitle: "轻法式白月光养成报告",
+    keywords: ["清透", "温柔", "低饱和", "松弛感"],
+    summary: "不需要大改，增加轻盈和低饱和氛围就会更出片。",
+    palette: ["#f8ded7", "#fff5eb", "#c9b39f", "#9c7b6d", "#d6dcd2"],
+    tone: "奶油白、浅咖、柔粉和珍珠光感",
+  },
+  koreanSchool: {
+    id: "koreanSchool",
+    title: "韩系温柔学姐",
+    reportTitle: "韩系温柔学姐变美报告",
+    keywords: ["干净", "温柔", "上镜", "亲和力"],
+    summary: "清新自然，一眼心动的学姐感。",
+    palette: ["#ffe8ef", "#edf5ff", "#c6dbef", "#f7d8c8", "#8c6f65"],
+    tone: "粉白渐变、轻韩系贴纸感",
+  },
+  coolAiry: {
+    id: "coolAiry",
+    title: "清冷氧气感",
+    reportTitle: "清冷氧气感形象报告",
+    keywords: ["清冷", "通透", "轻盈", "克制高级"],
+    summary: "不张扬，但自带呼吸感。",
+    palette: ["#f7fbff", "#dfe8ef", "#b7c6d3", "#8799a8", "#f1d9dc"],
+    tone: "冷白、浅灰、淡粉和更多留白",
+  },
+  sweetCool: {
+    id: "sweetCool",
+    title: "甜酷千金感",
+    reportTitle: "甜酷千金感形象报告",
+    keywords: ["甜酷", "精致", "时髦", "存在感"],
+    summary: "甜而不腻，酷而有度。",
+    palette: ["#ffe3ec", "#f7b1c9", "#c98763", "#6c302f", "#fff0d5"],
+    tone: "粉、奶油、玫瑰金和强一点的对比",
+  },
+};
+
+export const DEFAULT_ADMIN: AdminState = {
+  passwordHashHint: "首次部署请设置 ADMIN_PASSWORD_SECRET，当前本地演示密码由前端 mock 管理。",
+  products: DEFAULT_PRODUCTS,
+  coupons: [],
+  users: [
+    {
+      id: "adm_owner",
+      name: "AISea Owner",
+      role: "owner",
+      enabled: true,
+      createdAt: new Date().toISOString(),
+    },
+  ],
+  auditLogs: [
+    {
+      id: "log_bootstrap",
+      actor: "system",
+      action: "bootstrap",
+      detail: "初始化后台配置、商品、管理员与审计日志",
+      createdAt: new Date().toISOString(),
+    },
+  ],
+};
+
+export const preferenceOptions = {
+  style: ["系统自动推荐", "清爽利落", "温柔精致", "中性简约", "时尚个性"],
+  scene: ["系统推荐", "日常干净", "通勤 / 上学", "拍照上镜", "聚会活动", "风格焕新"],
+  change: ["系统推荐", "轻微优化", "明显变化", "大胆尝试"],
+};
