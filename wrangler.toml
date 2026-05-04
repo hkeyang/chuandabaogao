@@ -1,4 +1,4 @@
-name = "aisea-h5"
+name = "chuandabaogao"
 main = "worker/index.ts"
 compatibility_date = "2026-05-05"
 
@@ -6,17 +6,21 @@ compatibility_date = "2026-05-05"
 directory = "./dist"
 binding = "ASSETS"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "aisea-production"
-database_id = "replace-with-d1-database-id"
-
-[[r2_buckets]]
-binding = "R2"
-bucket_name = "aisea-reports"
+# Production D1/R2 bindings are intentionally disabled until the real
+# Cloudflare resource IDs are available. Keep worker/schema.sql and
+# worker/index.ts ready; then uncomment these blocks and fill database_id.
+#
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "aisea-production"
+# database_id = "replace-with-real-d1-database-id"
+#
+# [[r2_buckets]]
+# binding = "R2"
+# bucket_name = "aisea-reports"
 
 [vars]
-PUBLIC_BASE_URL = "https://hair.aisea.space"
+PUBLIC_BASE_URL = "https://ai.aisea.space"
 R2_PUBLIC_BASE_URL = "https://img.hair.aisea.space"
 OPENAI_IMAGE_MODEL = "gpt-image-2"
 OPENAI_IMAGE_ENDPOINT = "https://img.hair.aisea.space/v1/images/generations"
