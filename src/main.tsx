@@ -79,7 +79,7 @@ function loadState(): AppState {
     return {
       ...fallback,
       product,
-      rights: { topic: 2, comprehensive: 0 },
+      rights: { topic: 3, comprehensive: 1 },
       reportType: "comprehensive",
       privacyAccepted: true,
       progress: 100,
@@ -91,6 +91,13 @@ function loadState(): AppState {
         persona: "softFrench",
         prompt: "Demo prompt: 生产环境会调用 gpt-image-2，并要求中文清晰、无乱码、模块准确。",
       }],
+    };
+  }
+  if (params.get("demo") === "admin" && ["127.0.0.1", "localhost"].includes(window.location.hostname)) {
+    return {
+      ...fallback,
+      route: "admin",
+      adminAuthed: true,
     };
   }
   try {
@@ -303,7 +310,7 @@ function App() {
         }
         return { ...s, progress: next };
       });
-    }, 1150);
+    }, 26000);
     return () => window.clearInterval(timer);
   }, [state.route]);
 
@@ -346,20 +353,22 @@ function audit(logs: AuditLog[], actor: string, action: string, detail: string) 
 }
 
 function Shell({ state, nav, children }: { state: AppState; nav: (route: Route) => void; children: React.ReactNode }) {
+  const showBrandBar = state.route === "home" || state.route === "admin";
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <button className="brand reset" onClick={() => nav("home")} aria-label="返回首页">
-          <img src={ASSETS.logo} alt="AISea Logo" />
-          <span><b>AISea</b><small>hair.aisea.space</small></span>
-        </button>
-        <nav className="nav-actions">
-          {state.route !== "home" && <button className="icon-btn" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft size={20} /></button>}
-          <button className="btn ghost" onClick={() => nav("purchase")}>套餐购买</button>
-          <button className="btn ghost" onClick={() => nav("select")}>选择报告</button>
-          <button className="btn primary small" onClick={() => nav("admin")}><ShieldCheck size={16} />后台</button>
-        </nav>
-      </header>
+      {showBrandBar && (
+        <header className="topbar">
+          <button className="brand reset" onClick={() => nav("home")} aria-label="返回首页">
+            <img src={ASSETS.logo} alt="AISea Logo" />
+            <span><b>AISea</b><small>hair.aisea.space</small></span>
+          </button>
+          <nav className="nav-actions">
+            <button className="btn ghost" onClick={() => nav("purchase")}>套餐购买</button>
+            <button className="btn ghost" onClick={() => nav("select")}>选择报告</button>
+            <button className="btn primary small" onClick={() => nav("admin")}><ShieldCheck size={16} />后台</button>
+          </nav>
+        </header>
+      )}
       {children}
     </div>
   );
@@ -437,7 +446,7 @@ function FAQ() {
 }
 
 function PageTitle({ title, text, nav }: { title: string; text: string; nav: (r: Route) => void }) {
-  return <div className="page-title"><button className="round-back" onClick={() => nav("home")}><ArrowLeft /></button><div><h1>{title}</h1><p>{text}</p></div></div>;
+  return <div className="page-title"><button className="round-back" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><div><h1>{title}</h1><p>{text}</p></div></div>;
 }
 
 function SuccessPage({ state, setState, nav }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; nav: (r: Route) => void }) {

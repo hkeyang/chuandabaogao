@@ -49,6 +49,7 @@ async function waitForServer() {
 
 async function capture(chrome, name, size, url) {
   const file = join(outputDir, `${name}.png`);
+  const profileDir = join(tmpdir(), `aisea-chrome-${name}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   await execFileAsync(chrome, [
     "--headless",
     "--no-sandbox",
@@ -56,7 +57,7 @@ async function capture(chrome, name, size, url) {
     "--disable-dev-shm-usage",
     "--run-all-compositor-stages-before-draw",
     "--virtual-time-budget=2500",
-    `--user-data-dir=${join(tmpdir(), `aisea-chrome-${name}`)}`,
+    `--user-data-dir=${profileDir}`,
     "--hide-scrollbars",
     `--window-size=${size}`,
     `--screenshot=${file}`,
@@ -78,7 +79,15 @@ try {
   await waitForServer();
   const shots = [
     await capture(chrome, "home-mobile", "390,1400", `${base}/#/home`),
+    await capture(chrome, "purchase-mobile", "390,1600", `${base}/#/purchase`),
+    await capture(chrome, "success-mobile", "390,1400", `${base}/?demo=full#/success`),
+    await capture(chrome, "select-mobile", "390,1700", `${base}/?demo=full#/select`),
+    await capture(chrome, "upload-mobile", "390,1600", `${base}/?demo=full#/upload`),
+    await capture(chrome, "preferences-mobile", "390,1700", `${base}/?demo=full#/preferences`),
+    await capture(chrome, "confirm-mobile", "390,1700", `${base}/?demo=full#/confirm`),
+    await capture(chrome, "progress-mobile", "390,1400", `${base}/#/progress`),
     await capture(chrome, "admin-mobile", "390,1400", `${base}/#/admin`),
+    await capture(chrome, "admin-dashboard-mobile", "390,1800", `${base}/?demo=admin#/admin`),
     await capture(chrome, "result-mobile", "390,1400", `${base}/?demo=full#/result`),
     await capture(chrome, "home-desktop", "1365,1200", `${base}/#/home`),
   ];
