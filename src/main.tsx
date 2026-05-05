@@ -391,10 +391,7 @@ function Shell({ state, nav, children }: { state: AppState; nav: (route: Route) 
           </button>
           <nav className="nav-actions">
             {homeBar ? (
-              <button className="home-light-tag" onClick={() => nav("admin")} aria-label="进入后台">
-                <img src={HOME_ASSETS.star} alt="" />
-                <span>轻量版 · 更懂你</span>
-              </button>
+              null
             ) : (
               <>
                 <button className="btn ghost" onClick={() => nav("purchase")}>套餐购买</button>
