@@ -1,0 +1,41 @@
+{
+  "package": "H5 全案探索卡页面配图资源包",
+  "intended_layout": "移动端H5，适配图二风格：粉橙渐变、勋章、权益卡片、报告卡、权益说明图标、底部提示。",
+  "files": [
+    "badge_check_medal.png",
+    "badge_check_medal_small.png",
+    "benefit_summary_card_bg.png",
+    "bottom_success_gift.png",
+    "btn_arrow_orange.png",
+    "btn_arrow_pink.png",
+    "card_comprehensive_report_bg.png",
+    "card_topic_report_bg.png",
+    "decor_confetti_cluster.png",
+    "hero_bg_confetti.png",
+    "icon_accessory_bag.png",
+    "icon_clock_validity.png",
+    "icon_color_diagnosis.png",
+    "icon_gift_success.png",
+    "icon_hair_analysis.png",
+    "icon_hair_color.png",
+    "icon_heart_tip.png",
+    "icon_makeup.png",
+    "icon_outfit.png",
+    "icon_report_comprehensive.png",
+    "icon_report_topic.png",
+    "icon_scene_camera.png",
+    "page_visual_background_no_text.png",
+    "section_title_sparkle_divider.png"
+  ],
+  "suggested_usage": {
+    "hero_bg_confetti.png": "顶部banner背景，cover铺满",
+    "badge_check_medal.png": "顶部已兑换勋章",
+    "benefit_summary_card_bg.png": "权益清单白色玻璃卡背景",
+    "card_comprehensive_report_bg.png": "先生色综合形象报告卡背景",
+    "card_topic_report_bg.png": "先生成专题报告卡背景",
+    "icon_*.png": "权益说明、专题、有效期等圆形小图标",
+    "btn_arrow_pink.png / btn_arrow_orange.png": "两个报告入口按钮",
+    "bottom_success_gift.png": "底部兑换成功配图",
+    "page_visual_background_no_text.png": "整体无文字氛围底图，可拆分或作设计参考"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "说明": "每个 PNG 为一个独立素材，均为透明背景；21 为从参考图二裁出的照片缩略图，其余为按图二风格重绘的小图标/配图。",
+  "files": [
+    "01_check_badge.png",
+    "02_back_arrow_circle.png",
+    "03_lightbulb_tip.png",
+    "04_hex_star_token.png",
+    "05_illustration_clipboard_star.png",
+    "06_illustration_folder_heart.png",
+    "07_icon_hair.png",
+    "08_icon_hair_color_drop.png",
+    "09_icon_palette_color.png",
+    "10_icon_makeup_lipstick.png",
+    "11_icon_outfit_shirt.png",
+    "12_icon_accessory_bag.png",
+    "13_icon_scene_image.png",
+    "14_icon_camera_lens.png",
+    "15_icon_heart_preference.png",
+    "16_icon_sparkle_change.png",
+    "17_icon_clock.png",
+    "18_icon_checkbox_checked.png",
+    "19_deco_sparkle_large.png",
+    "20_deco_sparkle_small.png",
+    "21_uploaded_photo_thumbnail_crop.png",
+    "22_card_document_star.png"
+  ]
+}

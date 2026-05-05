@@ -1,4 +1,4 @@
-import type { AdminState, Persona, Product, ReportType } from "./types";
+import type { AdminState, Persona, PreferenceSection, Product, ReportType } from "./types";
 
 export const ASSETS = {
   logo: "/assets/website-Logo.png",
@@ -17,6 +17,41 @@ export const ASSETS = {
   match: "/assets/icon-match-style.png",
   poster: "/assets/hair-poster-sprite-v2.png",
   shape: "/assets/shapelab-beauty-sprite.png",
+};
+
+export const PREFERENCE_ASSETS = {
+  back: "/assets/aisea_icon_05_preference/nav_back_arrow.png",
+  cloud: "/assets/aisea_icon_05_preference/decor_soft_cloud.png",
+  heart: "/assets/aisea_icon_05_preference/decor_heart_outline.png",
+  twinklePink: "/assets/aisea_icon_05_preference/decor_twinkle_pink.png",
+  twinkleWhite: "/assets/aisea_icon_05_preference/decor_twinkle_white.png",
+  sparkle: "/assets/aisea_icon_05_preference/section_sparkle_pink.png",
+  calendar: "/assets/aisea_icon_05_preference/section_calendar_pink.png",
+  diamond: "/assets/aisea_icon_05_preference/section_diamond_pink.png",
+  infoSparkle: "/assets/aisea_icon_05_preference/section_sparkle_pink.png",
+  checkSelected: "/assets/aisea_icon_05_preference/icon_check_circle_pink.png",
+  radioEmpty: "/assets/aisea_icon_05_preference/icon_radio_empty_gray.png",
+  radioSelected: "/assets/aisea_icon_05_preference/icon_radio_selected_pink.png",
+  tileBlush: "/assets/aisea_icon_05_preference/tile_blush_pink.png",
+  tileIce: "/assets/aisea_icon_05_preference/tile_ice_blue.png",
+  tileLilac: "/assets/aisea_icon_05_preference/tile_lilac_purple.png",
+  tileNeutral: "/assets/aisea_icon_05_preference/tile_neutral_gray.png",
+  tileWarm: "/assets/aisea_icon_05_preference/tile_warm_orange.png",
+  magicPink: "/assets/aisea_icon_05_preference/icon_magic_wand_pink.png",
+  magicGray: "/assets/aisea_icon_05_preference/icon_magic_wand_gray.png",
+  leaf: "/assets/aisea_icon_05_preference/icon_leaf_blue.png",
+  flower: "/assets/aisea_icon_05_preference/icon_flower_pink.png",
+  square: "/assets/aisea_icon_05_preference/icon_square_neutral.png",
+  starPurple: "/assets/aisea_icon_05_preference/icon_star_purple.png",
+  cup: "/assets/aisea_icon_05_preference/icon_cup_pink.png",
+  briefcase: "/assets/aisea_icon_05_preference/icon_briefcase_blue.png",
+  camera: "/assets/aisea_icon_05_preference/icon_camera_pink.png",
+  cheers: "/assets/aisea_icon_05_preference/icon_cheers_purple.png",
+  sparkleOrange: "/assets/aisea_icon_05_preference/icon_sparkle_orange.png",
+  thumbs: "/assets/aisea_icon_05_preference/icon_thumbs_gray.png",
+  rose: "/assets/aisea_icon_05_preference/icon_rose_pink.png",
+  waves: "/assets/aisea_icon_05_preference/icon_waves_orange.png",
+  star: "/assets/aisea_icon_05_preference/icon_star_purple.png",
 };
 
 export const DEFAULT_PRODUCTS: Product[] = [
@@ -178,3 +213,52 @@ export const preferenceOptions = {
   scene: ["系统推荐", "日常干净", "通勤 / 上学", "拍照上镜", "聚会活动", "风格焕新"],
   change: ["系统推荐", "轻微优化", "明显变化", "大胆尝试"],
 };
+
+export const preferenceSections: PreferenceSection[] = [
+  {
+    id: "style",
+    index: 1,
+    title: "造型表达偏好",
+    desc: "选择你更喜欢的整体风格方向",
+    icon: PREFERENCE_ASSETS.sparkle,
+    mode: "multiple",
+    options: [
+      { id: "auto", label: "系统自动推荐", icon: PREFERENCE_ASSETS.magicPink, color: "#ff4f8b", bg: "#fff1f6", tile: PREFERENCE_ASSETS.tileBlush },
+      { id: "fresh", label: "清爽利落", icon: PREFERENCE_ASSETS.leaf, color: "#7fa9dc", bg: "#f5f9ff", tile: PREFERENCE_ASSETS.tileIce },
+      { id: "gentle", label: "温柔精致", icon: PREFERENCE_ASSETS.flower, color: "#f56f98", bg: "#fff4f8", tile: PREFERENCE_ASSETS.tileBlush },
+      { id: "neutral", label: "中性简约", icon: PREFERENCE_ASSETS.square, color: "#9a8d84", bg: "#fffaf5", tile: PREFERENCE_ASSETS.tileNeutral },
+      { id: "fashion", label: "时尚个性", icon: PREFERENCE_ASSETS.starPurple, color: "#a77bd8", bg: "#fbf6ff", tile: PREFERENCE_ASSETS.tileLilac },
+    ],
+  },
+  {
+    id: "scene",
+    index: 2,
+    title: "目标场景",
+    desc: "选择你希望覆盖的主要场景",
+    icon: PREFERENCE_ASSETS.calendar,
+    mode: "multiple",
+    maxSelected: 3,
+    options: [
+      { id: "daily", label: "日常干净", icon: PREFERENCE_ASSETS.cup, color: "#ff5b8f", bg: "#fff1f6", tile: PREFERENCE_ASSETS.tileBlush },
+      { id: "school", label: "通勤/上学", icon: PREFERENCE_ASSETS.briefcase, color: "#6d9bd6", bg: "#f6faff", tile: PREFERENCE_ASSETS.tileIce },
+      { id: "photo", label: "拍照上镜", icon: PREFERENCE_ASSETS.camera, color: "#ff6f9a", bg: "#fff4f8", tile: PREFERENCE_ASSETS.tileBlush },
+      { id: "party", label: "聚会活动", icon: PREFERENCE_ASSETS.cheers, color: "#b48ad9", bg: "#fbf7ff", tile: PREFERENCE_ASSETS.tileLilac },
+      { id: "refresh", label: "风格焕新", icon: PREFERENCE_ASSETS.sparkleOrange, color: "#e2a15e", bg: "#fff9f1", tile: PREFERENCE_ASSETS.tileWarm },
+      { id: "auto", label: "系统推荐", icon: PREFERENCE_ASSETS.magicGray, color: "#8a8a8a", bg: "#fafafa", tile: PREFERENCE_ASSETS.tileNeutral },
+    ],
+  },
+  {
+    id: "range",
+    index: 3,
+    title: "改变幅度",
+    desc: "选择你希望的改变程度",
+    icon: PREFERENCE_ASSETS.diamond,
+    mode: "single",
+    options: [
+      { id: "light", label: "轻微优化", icon: PREFERENCE_ASSETS.rose, color: "#ff668f", bg: "#fff1f6", tile: PREFERENCE_ASSETS.tileBlush },
+      { id: "obvious", label: "明显变化", icon: PREFERENCE_ASSETS.waves, color: "#d89968", bg: "#fff8f1", tile: PREFERENCE_ASSETS.tileWarm },
+      { id: "bold", label: "大胆尝试", icon: PREFERENCE_ASSETS.star, color: "#a77bd8", bg: "#fbf6ff", tile: PREFERENCE_ASSETS.tileLilac },
+      { id: "auto", label: "系统推荐", icon: PREFERENCE_ASSETS.magicGray, color: "#8a8a8a", bg: "#fafafa", tile: PREFERENCE_ASSETS.tileNeutral },
+    ],
+  },
+];

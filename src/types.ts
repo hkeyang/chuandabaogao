@@ -1,6 +1,7 @@
 export type ProductId = "single" | "triple" | "full";
 export type ReportTypeId = "comprehensive" | "hair" | "makeup" | "outfit" | "look";
 export type Role = "owner" | "admin" | "operator" | "viewer";
+export type PreferenceMode = "single" | "multiple";
 
 export interface Product {
   id: ProductId;
@@ -63,6 +64,32 @@ export interface Persona {
   summary: string;
   palette: string[];
   tone: string;
+}
+
+export interface PreferenceOption {
+  id: string;
+  label: string;
+  icon: string;
+  color: string;
+  bg: string;
+  tile?: string;
+}
+
+export interface PreferenceSection {
+  id: string;
+  index: number;
+  title: string;
+  desc: string;
+  icon: string;
+  mode: PreferenceMode;
+  maxSelected?: number;
+  options: PreferenceOption[];
+}
+
+export interface PreferenceState {
+  stylePreferences: string[];
+  targetScenes: string[];
+  changeIntensity: string;
 }
 
 export interface AdminUser {

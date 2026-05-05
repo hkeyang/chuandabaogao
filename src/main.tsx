@@ -30,8 +30,8 @@ import {
   WandSparkles,
 } from "lucide-react";
 import "./styles.css";
-import { ASSETS, DEFAULT_ADMIN, DEFAULT_PRODUCTS, PERSONAS, REPORT_TYPES, preferenceOptions } from "./data";
-import type { AdminState, AdminUser, AuditLog, Coupon, PersonaId, Product, ProductId, ReportType, ReportTypeId, Rights, UserReport } from "./types";
+import { ASSETS, DEFAULT_ADMIN, DEFAULT_PRODUCTS, PERSONAS, REPORT_TYPES, PREFERENCE_ASSETS, preferenceSections } from "./data";
+import type { AdminState, AdminUser, AuditLog, Coupon, PersonaId, PreferenceState, Product, ProductId, ReportType, ReportTypeId, Rights, UserReport } from "./types";
 
 type Route = "home" | "purchase" | "success" | "select" | "upload" | "preferences" | "confirm" | "progress" | "result" | "admin";
 type Toast = { id: number; text: string };
@@ -62,6 +62,199 @@ const HOME_ASSETS = {
   palette: new URL("../assets/aisea_icon_01/19_palette.svg", import.meta.url).href,
 };
 
+const FULL_CARD_ASSETS = {
+  heroBg: new URL("../assets/aisea_icon_02-全案探索卡/hero_bg_confetti.png", import.meta.url).href,
+  medal: new URL("../assets/aisea_icon_02-全案探索卡/badge_check_medal.png", import.meta.url).href,
+  benefitBg: new URL("../assets/aisea_icon_02-全案探索卡/benefit_summary_card_bg.png", import.meta.url).href,
+  comprehensiveCard: new URL("../assets/aisea_icon_02-全案探索卡/card_comprehensive_report_bg.png", import.meta.url).href,
+  topicCard: new URL("../assets/aisea_icon_02-全案探索卡/card_topic_report_bg.png", import.meta.url).href,
+  arrowPink: new URL("../assets/aisea_icon_02-全案探索卡/btn_arrow_pink.png", import.meta.url).href,
+  arrowOrange: new URL("../assets/aisea_icon_02-全案探索卡/btn_arrow_orange.png", import.meta.url).href,
+  sparkleDivider: new URL("../assets/aisea_icon_02-全案探索卡/section_title_sparkle_divider.png", import.meta.url).href,
+  reportComprehensive: new URL("../assets/aisea_icon_02-全案探索卡/icon_report_comprehensive.png", import.meta.url).href,
+  reportTopic: new URL("../assets/aisea_icon_02-全案探索卡/icon_report_topic.png", import.meta.url).href,
+  hairAnalysis: new URL("../assets/aisea_icon_02-全案探索卡/icon_hair_analysis.png", import.meta.url).href,
+  hairColor: new URL("../assets/aisea_icon_02-全案探索卡/icon_hair_color.png", import.meta.url).href,
+  colorDiagnosis: new URL("../assets/aisea_icon_02-全案探索卡/icon_color_diagnosis.png", import.meta.url).href,
+  makeup: new URL("../assets/aisea_icon_02-全案探索卡/icon_makeup.png", import.meta.url).href,
+  outfit: new URL("../assets/aisea_icon_02-全案探索卡/icon_outfit.png", import.meta.url).href,
+  accessory: new URL("../assets/aisea_icon_02-全案探索卡/icon_accessory_bag.png", import.meta.url).href,
+  scene: new URL("../assets/aisea_icon_02-全案探索卡/icon_scene_camera.png", import.meta.url).href,
+  clock: new URL("../assets/aisea_icon_02-全案探索卡/icon_clock_validity.png", import.meta.url).href,
+  gift: new URL("../assets/aisea_icon_02-全案探索卡/bottom_success_gift.png", import.meta.url).href,
+  giftIcon: new URL("../assets/aisea_icon_02-全案探索卡/icon_gift_success.png", import.meta.url).href,
+  heartTip: new URL("../assets/aisea_icon_02-全案探索卡/icon_heart_tip.png", import.meta.url).href,
+};
+
+const CHOOSE_REPORT_ASSETS = {
+  badge: new URL("../assets/aisea_icon_03-choose report/03_全案专享徽章.png", import.meta.url).href,
+  comprehensivePreview: new URL("../assets/aisea_icon_03-choose report/04_综合形象报告预览卡.png", import.meta.url).href,
+  hair: new URL("../assets/aisea_icon_03-choose report/05_发型发色专题配图.png", import.meta.url).href,
+  makeup: new URL("../assets/aisea_icon_03-choose report/06_色彩妆容专题配图.png", import.meta.url).href,
+  outfit: new URL("../assets/aisea_icon_03-choose report/07_穿搭配饰专题配图.png", import.meta.url).href,
+  look: new URL("../assets/aisea_icon_03-choose report/08_场景Look专题配图.png", import.meta.url).href,
+};
+
+const PHOTO_UPLOAD_ASSETS = {
+  reportBadge: new URL("../assets/aisea_icon_04-photo_upload/report_clipboard_badge.png", import.meta.url).href,
+  recommendedPortrait: new URL("../assets/aisea_icon_04-photo_upload/portrait_recommended_front_clean.png", import.meta.url).href,
+  avoidPortrait: new URL("../assets/aisea_icon_04-photo_upload/portrait_avoid_side_messy.png", import.meta.url).href,
+  uploadPlaceholder: new URL("../assets/aisea_icon_04-photo_upload/image_placeholder_pink.png", import.meta.url).href,
+  uploadCloud: new URL("../assets/aisea_icon_04-photo_upload/upload_cloud_arrow.png", import.meta.url).href,
+  sparklePair: new URL("../assets/aisea_icon_04-photo_upload/sparkles_pair.png", import.meta.url).href,
+  sparkleLarge: new URL("../assets/aisea_icon_04-photo_upload/sparkle_large.png", import.meta.url).href,
+  tinyStars: new URL("../assets/aisea_icon_04-photo_upload/tiny_stars_group.png", import.meta.url).href,
+  checkGreen: new URL("../assets/aisea_icon_04-photo_upload/check_circle_green.png", import.meta.url).href,
+  checkPink: new URL("../assets/aisea_icon_04-photo_upload/check_circle_pink.png", import.meta.url).href,
+  crossGray: new URL("../assets/aisea_icon_04-photo_upload/cross_circle_gray.png", import.meta.url).href,
+  singleFace: new URL("../assets/aisea_icon_04-photo_upload/icon_single_front_face.png", import.meta.url).href,
+  clearLight: new URL("../assets/aisea_icon_04-photo_upload/icon_clear_light.png", import.meta.url).href,
+  hairVisible: new URL("../assets/aisea_icon_04-photo_upload/icon_no_face_hair_occlusion.png", import.meta.url).href,
+  noBeauty: new URL("../assets/aisea_icon_04-photo_upload/icon_magic_wand_beauty.png", import.meta.url).href,
+  heartSingle: new URL("../assets/aisea_icon_04-photo_upload/heart_single.png", import.meta.url).href,
+  heartsDouble: new URL("../assets/aisea_icon_04-photo_upload/hearts_double.png", import.meta.url).href,
+};
+
+const CONFIRM_GENERATE_ASSETS = {
+  back: new URL("../assets/aisea_icon_06-figure2/02_back_arrow_circle.png", import.meta.url).href,
+  check: new URL("../assets/aisea_icon_06-figure2/01_check_badge.png", import.meta.url).href,
+  tip: new URL("../assets/aisea_icon_06-figure2/03_lightbulb_tip.png", import.meta.url).href,
+  token: new URL("../assets/aisea_icon_06-figure2/04_hex_star_token.png", import.meta.url).href,
+  report: new URL("../assets/aisea_icon_06-figure2/05_illustration_clipboard_star.png", import.meta.url).href,
+  folderHeart: new URL("../assets/aisea_icon_06-figure2/06_illustration_folder_heart.png", import.meta.url).href,
+  uploadedPhoto: new URL("../assets/aisea_icon_06-figure2/21_uploaded_photo_thumbnail_crop.png", import.meta.url).href,
+  hair: new URL("../assets/aisea_icon_06-figure2/07_icon_hair.png", import.meta.url).href,
+  hairColor: new URL("../assets/aisea_icon_06-figure2/08_icon_hair_color_drop.png", import.meta.url).href,
+  palette: new URL("../assets/aisea_icon_06-figure2/09_icon_palette_color.png", import.meta.url).href,
+  makeup: new URL("../assets/aisea_icon_06-figure2/10_icon_makeup_lipstick.png", import.meta.url).href,
+  outfit: new URL("../assets/aisea_icon_06-figure2/11_icon_outfit_shirt.png", import.meta.url).href,
+  accessory: new URL("../assets/aisea_icon_06-figure2/12_icon_accessory_bag.png", import.meta.url).href,
+  scene: new URL("../assets/aisea_icon_06-figure2/13_icon_scene_image.png", import.meta.url).href,
+  heart: new URL("../assets/aisea_icon_06-figure2/15_icon_heart_preference.png", import.meta.url).href,
+  camera: new URL("../assets/aisea_icon_06-figure2/14_icon_camera_lens.png", import.meta.url).href,
+  sparkle: new URL("../assets/aisea_icon_06-figure2/16_icon_sparkle_change.png", import.meta.url).href,
+  clock: new URL("../assets/aisea_icon_06-figure2/17_icon_clock.png", import.meta.url).href,
+  checkbox: new URL("../assets/aisea_icon_06-figure2/18_icon_checkbox_checked.png", import.meta.url).href,
+  decoLarge: new URL("../assets/aisea_icon_06-figure2/19_deco_sparkle_large.png", import.meta.url).href,
+  decoSmall: new URL("../assets/aisea_icon_06-figure2/20_deco_sparkle_small.png", import.meta.url).href,
+};
+
+const REPORT_PROGRESS_ASSETS = {
+  background: new URL("../assets/aisea_icon_07-report_progress/00_background_pink_soft_clouds.png", import.meta.url).href,
+  sparklePink: new URL("../assets/aisea_icon_07-report_progress/01_sparkle_pink_large.png", import.meta.url).href,
+  sparkleWhite: new URL("../assets/aisea_icon_07-report_progress/02_sparkle_white_medium.png", import.meta.url).href,
+  sparkleGray: new URL("../assets/aisea_icon_07-report_progress/03_sparkle_gray_small.png", import.meta.url).href,
+  heart: new URL("../assets/aisea_icon_07-report_progress/04_3d_heart_left.png", import.meta.url).href,
+  wand: new URL("../assets/aisea_icon_07-report_progress/05_magic_wand.png", import.meta.url).href,
+  cloud: new URL("../assets/aisea_icon_07-report_progress/06_cloud_mascot_with_wand.png", import.meta.url).href,
+  stepDone: new URL("../assets/aisea_icon_07-report_progress/08_step_check_active.png", import.meta.url).href,
+  stepThree: new URL("../assets/aisea_icon_07-report_progress/09_step_number_3_active.png", import.meta.url).href,
+  stepFour: new URL("../assets/aisea_icon_07-report_progress/10_step_number_4_gray.png", import.meta.url).href,
+  stepFive: new URL("../assets/aisea_icon_07-report_progress/11_step_number_5_gray.png", import.meta.url).href,
+  loading: new URL("../assets/aisea_icon_07-report_progress/12_loading_dots_pink.png", import.meta.url).href,
+  dashedDivider: new URL("../assets/aisea_icon_07-report_progress/13_dashed_divider.png", import.meta.url).href,
+  timelineLine: new URL("../assets/aisea_icon_07-report_progress/14_timeline_vertical_line.png", import.meta.url).href,
+  activeCard: new URL("../assets/aisea_icon_07-report_progress/15_active_step_highlight_card.png", import.meta.url).href,
+  sparkleCluster: new URL("../assets/aisea_icon_07-report_progress/16_sparkle_cluster.png", import.meta.url).href,
+  bottomCloudLeft: new URL("../assets/aisea_icon_07-report_progress/17_bottom_cloud_left.png", import.meta.url).href,
+  bottomCloudRight: new URL("../assets/aisea_icon_07-report_progress/18_bottom_cloud_right.png", import.meta.url).href,
+  lightDot: new URL("../assets/aisea_icon_07-report_progress/19_soft_white_light_dot.png", import.meta.url).href,
+};
+
+const BEAUTY_REPORT_ASSETS = {
+  heroPerson: new URL("../assets/aisea_icon_09_beauty_report/01_主视觉人物.png", import.meta.url).href,
+  hairstyles: new URL("../assets/aisea_icon_09_beauty_report/02_发型推荐_五连图.png", import.meta.url).href,
+  hairColors: new URL("../assets/aisea_icon_09_beauty_report/03_发色推荐_色卡.png", import.meta.url).href,
+  colorBoard: new URL("../assets/aisea_icon_09_beauty_report/04_色彩分析_色板.png", import.meta.url).href,
+  makeup: new URL("../assets/aisea_icon_09_beauty_report/05_妆容建议_拼图.png", import.meta.url).href,
+  outfitCampus: new URL("../assets/aisea_icon_09_beauty_report/06_穿搭建议_校园清新.png", import.meta.url).href,
+  outfitDaily: new URL("../assets/aisea_icon_09_beauty_report/07_穿搭建议_日常韩系.png", import.meta.url).href,
+  outfitPhoto: new URL("../assets/aisea_icon_09_beauty_report/08_穿搭建议_拍照氛围.png", import.meta.url).href,
+  accessories: new URL("../assets/aisea_icon_09_beauty_report/09_配饰推荐_四宫格.png", import.meta.url).href,
+  avoid: new URL("../assets/aisea_icon_09_beauty_report/10_氛围避雷区_五连图.png", import.meta.url).href,
+};
+
+const BEAUTY_REPORT = {
+  title: "韩系温柔学姐\n变美报告",
+  subtitle: "你的专属综合形象报告",
+  script: "Soft & Pretty",
+  tags: ["干净", "温柔", "上镜", "亲和力"],
+  quote: "清新自然的氛围感，一眼让人心动的学姐气质。",
+  keywords: [
+    ["干净柔和的五官", "适合低饱和、轻妆感路线"],
+    ["明亮清澈的气质", "保留自然感，增加上镜度"],
+    ["自然舒展的氛围", "发型和穿搭都要轻盈"],
+    ["亲和治愈的笑容", "用柔和色系放大优势"],
+  ],
+  hairstyles: [
+    ["空气刘海", "自然减龄"],
+    ["八字刘海", "修饰脸型"],
+    ["层次中长发", "轻盈灵动"],
+    ["慵懒大波浪", "温柔氛围"],
+    ["半扎公主头", "学姐感满分"],
+  ],
+  hairColors: ["黑茶色", "冷棕色", "奶茶棕", "亚麻棕", "焦糖棕", "蜜茶色"],
+  makeup: [
+    ["底妆", "清透自然\n伪素颜感"],
+    ["眉毛", "自然眉形\n柔和清晰"],
+    ["眼妆", "淡妆提亮\n卧蚕加分"],
+    ["腮红", "白里透红\n元气自然"],
+    ["唇色", "温柔豆沙\n奶茶色系"],
+  ],
+  outfits: [
+    ["校园清新感", BEAUTY_REPORT_ASSETS.outfitCampus, "清爽干净，青春减龄"],
+    ["日常韩系感", BEAUTY_REPORT_ASSETS.outfitDaily, "温柔简约，舒适耐看"],
+    ["拍照氛围感", BEAUTY_REPORT_ASSETS.outfitPhoto, "层次感强，氛围出片"],
+  ],
+  accessories: [
+    ["耳饰", "小巧精致"],
+    ["包包", "简约百搭"],
+    ["发饰", "温柔加分"],
+    ["眼镜", "文艺减龄"],
+  ],
+  avoidItems: [
+    ["妆容过浓", "显老显厚重"],
+    ["高饱和色", "易显土气"],
+    ["配饰繁杂", "显凌乱"],
+    ["发型扁塌油腻", "缺乏氛围"],
+    ["风格杂乱", "缺乏统一"],
+  ],
+  checklist: [
+    ["发型换一换", "试试空气刘海+层次中长发"],
+    ["妆容轻透化", "底妆清透+淡妆提亮"],
+    ["穿搭照着搭", "温柔色系+简约单品"],
+  ],
+} as const;
+
+type ProgressStepStatus = "done" | "active" | "pending";
+
+const REPORT_PROGRESS_STEPS = [
+  { id: 1, title: "已提交", desc: "照片已成功提交", doneAt: 8, activeAt: 0 },
+  { id: 2, title: "照片质量检测中", desc: "正在检测照片清晰度与合规性", doneAt: 35, activeAt: 16 },
+  { id: 3, title: "方案生成中", desc: "AI 正在分析你的形象与风格", doneAt: 70, activeAt: 36 },
+  { id: 4, title: "报告排版中", desc: "正在精心排版你的专属报告", doneAt: 94, activeAt: 71 },
+  { id: 5, title: "生成完成", desc: "报告生成完成，准备展示", doneAt: 100, activeAt: 100 },
+] as const;
+
+const CONFIRM_MODULES = [
+  { key: "hair", label: "发型", icon: CONFIRM_GENERATE_ASSETS.hair },
+  { key: "hairColor", label: "发色", icon: CONFIRM_GENERATE_ASSETS.hairColor },
+  { key: "palette", label: "色彩", icon: CONFIRM_GENERATE_ASSETS.palette },
+  { key: "makeup", label: "妆容", icon: CONFIRM_GENERATE_ASSETS.makeup },
+  { key: "outfit", label: "穿搭", icon: CONFIRM_GENERATE_ASSETS.outfit },
+  { key: "accessory", label: "配饰", icon: CONFIRM_GENERATE_ASSETS.accessory },
+  { key: "scene", label: "场景建议", icon: CONFIRM_GENERATE_ASSETS.scene },
+];
+
+const CONFIRM_PREFERENCES = [
+  { key: "gentle", label: "温柔精致", icon: CONFIRM_GENERATE_ASSETS.heart },
+  { key: "camera", label: "拍照上镜", icon: CONFIRM_GENERATE_ASSETS.camera },
+  { key: "sparkle", label: "明显变化", icon: CONFIRM_GENERATE_ASSETS.sparkle },
+];
+
+type UploadStatus = "idle" | "dragging" | "uploading" | "success" | "error";
+type PhotoCheckResult = "available" | "warning" | "failed";
+
 interface AppState {
   route: Route;
   product?: Product;
@@ -69,18 +262,57 @@ interface AppState {
   reportType: ReportTypeId;
   photoUrl: string;
   photoName: string;
-  preferences: { style: string; scene: string; change: string };
+  preferences: PreferenceState;
   privacyAccepted: boolean;
   progress: number;
   reports: UserReport[];
   admin: AdminState;
   adminAuthed: boolean;
   adminRole: AdminUser["role"];
+  uploadStatus: UploadStatus;
+  photoCheckResult?: PhotoCheckResult;
+  uploadErrorMessage?: string;
+  isGenerating: boolean;
 }
 
 const LS_KEY = "aisea-react-state-v1";
 const ADMIN_PASSWORD = "AISea@2026";
 const couponAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const DEFAULT_PREFERENCES: PreferenceState = {
+  stylePreferences: ["auto", "gentle"],
+  targetScenes: ["daily", "photo"],
+  changeIntensity: "light",
+};
+
+function normalizePreferences(value: unknown): PreferenceState {
+  const raw = (value && typeof value === "object") ? value as Partial<Record<string, unknown>> : {};
+  const legacy = raw as { style?: unknown; scene?: unknown; change?: unknown };
+  const stylePreferences = Array.isArray(raw.stylePreferences)
+    ? raw.stylePreferences.filter((item): item is string => typeof item === "string")
+    : typeof legacy.style === "string"
+      ? [legacy.style]
+      : DEFAULT_PREFERENCES.stylePreferences;
+  const targetScenes = Array.isArray(raw.targetScenes)
+    ? raw.targetScenes.filter((item): item is string => typeof item === "string")
+    : typeof legacy.scene === "string"
+      ? [legacy.scene]
+      : DEFAULT_PREFERENCES.targetScenes;
+  const changeIntensity = typeof raw.changeIntensity === "string"
+    ? raw.changeIntensity
+    : typeof legacy.change === "string"
+      ? legacy.change
+      : DEFAULT_PREFERENCES.changeIntensity;
+  return {
+    stylePreferences: stylePreferences.length ? stylePreferences : [...DEFAULT_PREFERENCES.stylePreferences],
+    targetScenes: targetScenes.length ? targetScenes : [...DEFAULT_PREFERENCES.targetScenes],
+    changeIntensity,
+  };
+}
+
+function preferenceLabel(sectionId: string, optionId: string) {
+  const section = preferenceSections.find((item) => item.id === sectionId);
+  return section?.options.find((item) => item.id === optionId)?.label || optionId;
+}
 
 function loadState(): AppState {
   const hashRoute = (window.location.hash.replace(/^#\/?/, "") || "home") as Route;
@@ -92,13 +324,17 @@ function loadState(): AppState {
     reportType: "comprehensive",
     photoUrl: ASSETS.heroAlt,
     photoName: "示例照片",
-    preferences: { style: "系统自动推荐", scene: "系统推荐", change: "系统推荐" },
+    preferences: DEFAULT_PREFERENCES,
     privacyAccepted: false,
     progress: 0,
     reports: [],
     admin: DEFAULT_ADMIN,
     adminAuthed: false,
     adminRole: "owner",
+    uploadStatus: "idle",
+    photoCheckResult: undefined,
+    uploadErrorMessage: undefined,
+    isGenerating: false,
   };
   if (params.get("demo") === "full") {
     const product = DEFAULT_PRODUCTS.find((item) => item.id === "full");
@@ -108,7 +344,8 @@ function loadState(): AppState {
       rights: { topic: 3, comprehensive: 1 },
       reportType: "comprehensive",
       privacyAccepted: true,
-      progress: 100,
+      progress: 62,
+      isGenerating: true,
       reports: [{
         id: "rpt_demo",
         type: "comprehensive",
@@ -128,7 +365,17 @@ function loadState(): AppState {
   }
   try {
     const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
-    return saved ? { ...fallback, ...saved, route: fallback.route, admin: { ...DEFAULT_ADMIN, ...saved.admin } } : fallback;
+    return saved ? {
+      ...fallback,
+      ...saved,
+      route: fallback.route,
+      admin: { ...DEFAULT_ADMIN, ...saved.admin },
+      preferences: normalizePreferences(saved.preferences),
+      uploadStatus: saved.uploadStatus || fallback.uploadStatus,
+      photoCheckResult: saved.photoCheckResult,
+      uploadErrorMessage: saved.uploadErrorMessage,
+      isGenerating: Boolean(saved.isGenerating),
+    } : fallback;
   } catch {
     return fallback;
   }
@@ -171,9 +418,9 @@ function buildPrompt(type: ReportType, personaId: PersonaId, prefs: AppState["pr
 - 人设方向：${persona.title}
 - 关键词：${persona.keywords.join(" / ")}
 - 视觉基调：${persona.tone}
-- 造型表达偏好：${prefs.style}
-- 目标场景：${prefs.scene}
-- 改变幅度：${prefs.change}
+- 造型表达偏好：${prefs.stylePreferences.join(" / ")}
+- 目标场景：${prefs.targetScenes.join(" / ")}
+- 改变幅度：${prefs.changeIntensity}
 
 【必须包含模块】
 ${type.id === "comprehensive" ? [
@@ -227,6 +474,89 @@ function xhsCopy(type: ReportType, personaId: PersonaId) {
 感觉不是大改造，而是把整体氛围变轻、变柔、变干净。
 
 #AI形象报告 #变美思路 #个人风格定位 #发型推荐 #普通女生变美`;
+}
+
+const REPORT_INTRO_CONFIG: Record<ReportTypeId, { titlePrefix: string; titleHighlight: string; description: string }> = {
+  comprehensive: { titlePrefix: "本次生成：", titleHighlight: "综合形象报告", description: "将生成发型、发色、色彩、妆容、穿搭和场景建议" },
+  hair: { titlePrefix: "本次生成：", titleHighlight: "发型发色专题报告", description: "将生成发型、发色、避开方向和打理建议" },
+  makeup: { titlePrefix: "本次生成：", titleHighlight: "色彩妆容专题报告", description: "将生成个人色彩、妆容、配色和上镜建议" },
+  outfit: { titlePrefix: "本次生成：", titleHighlight: "穿搭配饰专题报告", description: "将生成穿搭风格、配饰搭配和场景建议" },
+  look: { titlePrefix: "本次生成：", titleHighlight: "场景 Look 专题报告", description: "将生成不同场景的造型和拍照建议" },
+};
+
+const PHOTO_TIPS = {
+  goodExample: {
+    title: "推荐这样拍",
+    image: PHOTO_UPLOAD_ASSETS.recommendedPortrait,
+    checklist: ["正脸对镜头", "光线清晰"],
+  },
+  badExample: {
+    title: "避免这样拍",
+    image: PHOTO_UPLOAD_ASSETS.avoidPortrait,
+    checklist: ["侧脸或低头", "遮挡 / 逆光"],
+  },
+  quickTips: [
+    { icon: PHOTO_UPLOAD_ASSETS.singleFace, label: "单人正脸" },
+    { icon: PHOTO_UPLOAD_ASSETS.clearLight, label: "光线清晰" },
+    { icon: PHOTO_UPLOAD_ASSETS.hairVisible, label: "无遮挡" },
+    { icon: PHOTO_UPLOAD_ASSETS.noBeauty, label: "少美颜" },
+  ],
+} as const;
+
+const ACCEPT_TYPES = ["image/jpeg", "image/png", "image/heic", "image/heif"] as const;
+const ACCEPT_EXTENSIONS = ["jpg", "jpeg", "png", "heic", "heif"] as const;
+const MAX_SIZE = 10 * 1024 * 1024;
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(bytes >= 5 * 1024 * 1024 ? 1 : 2)}MB`;
+}
+
+function validateUploadFile(file: File) {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  if (!ACCEPT_TYPES.includes(file.type as (typeof ACCEPT_TYPES)[number]) && !ACCEPT_EXTENSIONS.includes(ext as (typeof ACCEPT_EXTENSIONS)[number])) {
+    return "仅支持 JPG / PNG / HEIC 格式";
+  }
+  if (file.size > MAX_SIZE) {
+    return "图片大小不能超过 10MB";
+  }
+  return null;
+}
+
+function inspectPhotoQuality(file: File): Promise<PhotoCheckResult> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      const { naturalWidth: width, naturalHeight: height } = image;
+      URL.revokeObjectURL(objectUrl);
+      const portraitRatio = height > 0 ? width / height : 1;
+      if (Math.min(width, height) < 520) {
+        resolve("failed");
+        return;
+      }
+      if (width < 900 || height < 1200 || portraitRatio < 0.65 || portraitRatio > 0.9 || file.size > 6 * 1024 * 1024) {
+        resolve("warning");
+        return;
+      }
+      resolve("available");
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("image-load-failed"));
+    };
+    image.src = objectUrl;
+  });
+}
+
+function photoCheckCopy(result?: PhotoCheckResult) {
+  if (result === "warning") {
+    return { title: "照片可能影响效果", desc: "建议确认是否为正脸、光线清晰", tone: "warning" as const };
+  }
+  if (result === "failed") {
+    return { title: "照片不可用", desc: "请重新上传清晰正脸照片", tone: "failed" as const };
+  }
+  return { title: "照片可用", desc: "照片清晰，可继续生成", tone: "available" as const };
 }
 
 function App() {
@@ -303,15 +633,18 @@ function App() {
   }
 
   function startGenerate() {
+    if (state.isGenerating) return showToast("正在生成中，请勿重复点击");
+    if (!state.photoUrl) return showToast("请先上传照片");
     if (!state.privacyAccepted) return showToast("请先确认照片授权");
     if (state.rights[reportType.rightKey] <= 0) return showToast("当前权益不足，请购买新券码");
-    setState((s) => ({ ...s, progress: 8, route: "progress" }));
+    setState((s) => ({ ...s, progress: 8, route: "progress", isGenerating: true }));
   }
 
   useEffect(() => {
     if (state.route !== "progress") return;
     const steps = [18, 31, 48, 63, 78, 91, 100];
-    let index = 0;
+    let index = Math.max(0, steps.findIndex((step) => step > state.progress));
+    if (index < 0) index = steps.length - 1;
     const timer = window.setInterval(() => {
       setState((s) => {
         const next = steps[index] || 100;
@@ -319,7 +652,7 @@ function App() {
         if (next >= 100) {
           window.clearInterval(timer);
           const type = REPORT_TYPES.find((item) => item.id === s.reportType) || REPORT_TYPES[0];
-          const personaId = pickPersona(s.preferences.style, s.preferences.scene);
+          const personaId = pickPersona(s.preferences.stylePreferences, s.preferences.targetScenes);
           const prompt = buildPrompt(type, personaId, s.preferences);
           const rights = { ...s.rights };
           rights[type.rightKey] = Math.max(0, rights[type.rightKey] - 1);
@@ -331,8 +664,8 @@ function App() {
             persona: personaId,
             prompt,
           };
-          window.setTimeout(() => setState((latest) => ({ ...latest, route: "result" })), 350);
-          return { ...s, progress: 100, rights, reports: [report, ...s.reports] };
+          window.setTimeout(() => setState((latest) => ({ ...latest, route: "result", isGenerating: false })), 350);
+          return { ...s, progress: 100, rights, reports: [report, ...s.reports], isGenerating: false };
         }
         return { ...s, progress: next };
       });
@@ -347,10 +680,10 @@ function App() {
   const page = (() => {
     switch (state.route) {
       case "purchase": return <PurchasePage products={products} nav={nav} showToast={showToast} />;
-      case "success": return <SuccessPage state={state} setState={setState} nav={nav} />;
+      case "success": return <SuccessPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
-      case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} />;
+      case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} />;
       case "progress": return <ProgressPage progress={state.progress} nav={nav} />;
       case "result": return <ResultPage state={state} nav={nav} showToast={showToast} />;
@@ -367,10 +700,12 @@ function App() {
   );
 }
 
-function pickPersona(style: string, scene: string): PersonaId {
-  if (style.includes("时尚") || scene.includes("聚会")) return "sweetCool";
-  if (style.includes("清爽") || scene.includes("通勤")) return "coolAiry";
-  if (scene.includes("拍照")) return "koreanSchool";
+function pickPersona(style: string[], scene: string[]): PersonaId {
+  const styleText = style.join(" ");
+  const sceneText = scene.join(" ");
+  if (styleText.includes("时尚") || sceneText.includes("聚会")) return "sweetCool";
+  if (styleText.includes("清爽") || sceneText.includes("通勤")) return "coolAiry";
+  if (sceneText.includes("拍照")) return "koreanSchool";
   return "softFrench";
 }
 
@@ -382,7 +717,7 @@ function Shell({ state, nav, children }: { state: AppState; nav: (route: Route) 
   const showBrandBar = state.route === "home" || state.route === "admin";
   const homeBar = state.route === "home";
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${state.route === "progress" ? "progress-shell" : ""}`}>
       {showBrandBar && (
         <header className={`topbar ${homeBar ? "home-topbar" : ""}`}>
           <button className="brand reset" onClick={() => nav("home")} aria-label="返回首页">
@@ -591,49 +926,955 @@ function PageTitle({ title, text, nav }: { title: string; text: string; nav: (r:
   return <div className="page-title"><button className="round-back" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><div><h1>{title}</h1><p>{text}</p></div></div>;
 }
 
-function SuccessPage({ state, setState, nav }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; nav: (r: Route) => void }) {
+function SuccessPage({ state, setState, nav, showToast }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; nav: (r: Route) => void; showToast: (t: string) => void }) {
   if (!state.product) return <Empty title="还没有兑换权益" text="请先购买或输入兑换码。" action="去兑换" onClick={() => nav("home")} />;
+  const comprehensiveRemain = state.rights.comprehensive;
+  const topicRemain = state.rights.topic;
   const full = state.product.id === "full";
-  return <main className="page"><PageTitle title={`已兑换：${state.product.name}`} text="开启你的专属形象探索之旅。" nav={nav} /><section className="success-hero"><BadgeCheck size={74} /><h2>{state.product.name}</h2><RightsPills rights={state.rights} /><p>{full ? "建议先生成综合形象报告，再继续探索专题。" : "下一步选择你最想看的专题报告。"}</p></section><div className="choice-grid"><button className="journey-card hot" disabled={!full} onClick={() => setState((s) => ({ ...s, reportType: "comprehensive", route: "upload" }))}><b>先生成综合形象报告</b><span>全面了解你的个人形象蓝图</span><ArrowLeft className="arrow" /></button><button className="journey-card" onClick={() => nav("select")}><b>先生成专题报告</b><span>自由探索你感兴趣的方向</span><ArrowLeft className="arrow" /></button></div></main>;
+  const comprehensiveDims = [
+    ["发型分析", FULL_CARD_ASSETS.hairAnalysis],
+    ["发色建议", FULL_CARD_ASSETS.hairColor],
+    ["色彩诊断", FULL_CARD_ASSETS.colorDiagnosis],
+    ["妆容建议", FULL_CARD_ASSETS.makeup],
+    ["穿搭方案", FULL_CARD_ASSETS.outfit],
+    ["配饰推荐", FULL_CARD_ASSETS.accessory],
+    ["场景建议", FULL_CARD_ASSETS.scene],
+  ];
+  const topics = [
+    ["发型改造专题", "找到最适合你的发型", FULL_CARD_ASSETS.hairAnalysis],
+    ["色彩妆容专题", "找到你的专属色彩妆容", FULL_CARD_ASSETS.colorDiagnosis],
+    ["穿搭配饰专题", "穿出风格，提升气质", FULL_CARD_ASSETS.outfit],
+    ["场景 Look 专题", "不同场景，轻松变美", FULL_CARD_ASSETS.scene],
+  ];
+  const startComprehensive = () => {
+    if (!full || comprehensiveRemain <= 0) return showToast("综合形象报告次数已用完");
+    setState((s) => ({ ...s, reportType: "comprehensive", route: "upload" }));
+  };
+  const startTopic = () => {
+    if (topicRemain <= 0) return showToast("专题报告次数已用完");
+    nav("select");
+  };
+
+  return (
+    <main className="page full-card-success">
+      <PageTitle title="兑换成功" text="开启你的专属形象探索之旅。" nav={nav} />
+
+      <section className="success-hero full-card-hero">
+        <img className="full-card-hero-bg" src={FULL_CARD_ASSETS.heroBg} alt="" />
+        <img className="full-card-medal" src={FULL_CARD_ASSETS.medal} alt="" />
+        <div className="full-card-hero-copy">
+          <h2>已兑换：<span>{state.product.name}</span></h2>
+          <p>开启你的专属形象探索之旅吧！</p>
+        </div>
+      </section>
+
+      <section className="benefit-card full-card-panel">
+        <img className="benefit-card-bg" src={FULL_CARD_ASSETS.benefitBg} alt="" />
+        <SuccessSectionTitle title="你的权益清单" />
+        <div className="benefit-row">
+          <div className="benefit-item">
+            <img src={FULL_CARD_ASSETS.reportComprehensive} alt="" />
+            <div><p>综合形象报告</p><strong>× {comprehensiveRemain}</strong></div>
+          </div>
+          <i />
+          <div className="benefit-item">
+            <img src={FULL_CARD_ASSETS.reportTopic} alt="" />
+            <div><p>专题报告</p><strong>× {topicRemain}</strong></div>
+          </div>
+        </div>
+        <div className="success-tip-bar">建议先生成综合形象报告，再继续探索专题</div>
+      </section>
+
+      <section className="action-section">
+        <SuccessSectionTitle title="立即开启你的专属形象之旅" />
+        <div className="success-action-grid">
+          <button className="success-action-card comprehensive" disabled={!full || comprehensiveRemain <= 0} onClick={startComprehensive}>
+            <span className="success-action-tag">推荐优先</span>
+            <b>{comprehensiveRemain > 0 ? "先生成综合形象报告" : "综合形象报告已用完"}</b>
+            <small>全面了解你的个人形象蓝图</small>
+            <img className="success-action-arrow" src={FULL_CARD_ASSETS.arrowPink} alt="" />
+            <img className="success-action-bg" src={FULL_CARD_ASSETS.comprehensiveCard} alt="" />
+          </button>
+          <button className="success-action-card topic" disabled={topicRemain <= 0} onClick={startTopic}>
+            <b>{topicRemain > 0 ? "先生成专题报告" : "专题报告已用完"}</b>
+            <small>自由探索你感兴趣的方向</small>
+            <img className="success-action-arrow" src={FULL_CARD_ASSETS.arrowOrange} alt="" />
+            <img className="success-action-bg" src={FULL_CARD_ASSETS.topicCard} alt="" />
+          </button>
+        </div>
+      </section>
+
+      <section className="rights-explain">
+        <SuccessSectionTitle title="你的权益说明" />
+        <article className="explain-card comprehensive">
+          <h3>综合形象报告 ×1 <span>全景专享</span></h3>
+          <p>7大维度全面解析，生成你的专属形象蓝图</p>
+          <div className="dimension-grid">{comprehensiveDims.map(([label, icon]) => <div key={label}><img src={icon} alt="" /><span>{label}</span></div>)}</div>
+        </article>
+        <article className="explain-card topic">
+          <h3>专题报告 ×3 <span>可自由选择</span></h3>
+          <p>4大热门专题，聚焦你想深入探索的方向</p>
+          <div className="topic-list">{topics.map(([title, text, icon]) => <div key={title}><img src={icon} alt="" /><b>{title}</b><span>{text}</span></div>)}</div>
+        </article>
+      </section>
+
+      <section className="success-info-grid">
+        <article>
+          <div><h3><img src={FULL_CARD_ASSETS.clock} alt="" />有效期</h3><p>自兑换日起</p><strong>365 天内有效</strong><small>请在有效期内使用完毕</small></div>
+        </article>
+        <article className="gift">
+          <div><h3><img src={FULL_CARD_ASSETS.giftIcon} alt="" />兑换成功！</h3><p>你的专属形象探索之旅正式开启</p></div>
+        </article>
+      </section>
+
+      <section className="bottom-photo-tip">
+        <img src={FULL_CARD_ASSETS.heartTip} alt="" />
+        <p><span>温馨提示：建议在光线充足的环境下拍摄，上传清晰的正脸照片，</span><span>可获得更精准的分析结果哦～</span></p>
+      </section>
+    </main>
+  );
 }
 
 function RightsPills({ rights }: { rights: Rights }) {
   return <div className="rights-pills"><span><ReceiptText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span><span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div>;
 }
 
+function SuccessSectionTitle({ title }: { title: string }) {
+  return <div className="success-section-title"><img src={FULL_CARD_ASSETS.sparkleDivider} alt="" /><span>{title}</span><img src={FULL_CARD_ASSETS.sparkleDivider} alt="" /></div>;
+}
+
 function SelectPage({ rights, chooseReport, nav }: { rights: Rights; chooseReport: (id: ReportTypeId) => void; nav: (r: Route) => void }) {
-  return <main className="page"><PageTitle title="选择报告类型" text="根据当前权益选择本次要生成的报告。" nav={nav} /><RightsPills rights={rights} /><div className="report-grid">{REPORT_TYPES.map((type) => { const available = rights[type.rightKey] > 0; return <button className={`report-card ${type.id === "comprehensive" ? "wide" : ""} ${available ? "" : "disabled"}`} key={type.id} onClick={() => chooseReport(type.id)}><div><h3>{type.name}{type.id === "comprehensive" && <span>全案专享</span>}</h3><p>{type.subtitle}</p><ul>{type.modules.slice(0, 5).map((m) => <li key={m}><Check size={15} />{m}</li>)}</ul></div><VisualSlot label={type.name} tone={type.id} /></button>; })}</div></main>;
+  const topics: Array<{
+    id: ReportTypeId;
+    title: string;
+    subtitle: string;
+    image: string;
+    border: string;
+    tint: string;
+  }> = [
+    { id: "hair", title: "发型发色专题", subtitle: "找到最适合你的发型", image: CHOOSE_REPORT_ASSETS.hair, border: "#ffc8d8", tint: "#fff3f7" },
+    { id: "makeup", title: "色彩妆容专题", subtitle: "找到你的专属色彩妆容", image: CHOOSE_REPORT_ASSETS.makeup, border: "#d8c6ff", tint: "#f8f5ff" },
+    { id: "outfit", title: "穿搭配饰专题", subtitle: "穿出风格，提升气质", image: CHOOSE_REPORT_ASSETS.outfit, border: "#ffd4b6", tint: "#fff7ef" },
+    { id: "look", title: "场景 Look 专题", subtitle: "不同场景，轻松变美", image: CHOOSE_REPORT_ASSETS.look, border: "#cbd7ff", tint: "#f5f8ff" },
+  ];
+
+  return (
+    <main className="choose-report-page">
+      <div className="choose-bg-star choose-bg-star-a">✦</div>
+      <div className="choose-bg-star choose-bg-star-b">✦</div>
+      <header className="choose-header">
+        <button className="choose-back" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button>
+        <h1>选择报告类型</h1>
+      </header>
+
+      <section className="choose-quota" aria-label="剩余报告次数">
+        <span><ReceiptText />综合报告剩余 <b>{rights.comprehensive}</b></span>
+        <span><KeyRound />专题报告剩余 <b>{rights.topic}</b></span>
+      </section>
+
+      <section className={`choose-main-card ${rights.comprehensive > 0 ? "" : "is-disabled"}`}>
+        <div className="choose-main-copy">
+          <div className="choose-eyebrow"><Sparkles />全案主推</div>
+          <h2>综合形象报告 <span>全案专享</span></h2>
+          <p>全方位解析你的个人形象</p>
+          <ul>
+            {["发型发色分析", "个人色彩搭配", "妆容定制建议", "穿搭风格方案", "场景Look推荐"].map((item) => (
+              <li key={item}><Check />{item}</li>
+            ))}
+          </ul>
+          <button className="choose-primary-btn" onClick={() => chooseReport("comprehensive")}>生成综合形象报告 ✦</button>
+        </div>
+        <div className="choose-main-visual">
+          <img className="choose-badge" src={CHOOSE_REPORT_ASSETS.badge} alt="全案专享" />
+          <img className="choose-preview" src={CHOOSE_REPORT_ASSETS.comprehensivePreview} alt="综合形象报告预览" />
+        </div>
+      </section>
+
+      <section className="choose-topic-grid" aria-label="专题报告">
+        {topics.map((topic) => (
+          <button
+            className={`choose-topic-card ${rights.topic > 0 ? "" : "is-disabled"}`}
+            style={{ "--topic-border": topic.border, "--topic-tint": topic.tint } as React.CSSProperties}
+            key={topic.id}
+            onClick={() => chooseReport(topic.id)}
+          >
+            <h2>{topic.title}</h2>
+            <p>{topic.subtitle}</p>
+            <div className="choose-topic-image">
+              <img src={topic.image} alt={`${topic.title}配图`} />
+            </div>
+            <span>选择该专题</span>
+          </button>
+        ))}
+      </section>
+
+      <footer className="choose-tip">✦ 可基于同一张照片继续探索不同方向 ✦</footer>
+    </main>
+  );
 }
 
 function UploadPage({ state, setState, nav, showToast }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; nav: (r: Route) => void; showToast: (t: string) => void }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const selectionRef = useRef(0);
+  const dragRestoreRef = useRef<UploadStatus>("idle");
   const type = REPORT_TYPES.find((item) => item.id === state.reportType)!;
-  const handleFile = (file?: File) => {
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) return showToast("图片超过 10MB，请重新选择");
-    const reader = new FileReader();
-    reader.onload = () => setState((s) => ({ ...s, photoUrl: String(reader.result), photoName: file.name }));
-    reader.readAsDataURL(file);
-    showToast("照片可用，可继续生成");
+  const intro = REPORT_INTRO_CONFIG[state.reportType];
+  const canGoNext = state.uploadStatus === "success" && state.photoCheckResult !== "failed" && !state.isGenerating;
+  const isUploading = state.uploadStatus === "uploading";
+  const uploadCopy = state.uploadStatus === "uploading"
+    ? { title: "照片上传中", desc: "请稍等一下，正在读取照片信息" }
+    : state.uploadStatus === "error" && state.uploadErrorMessage
+      ? { title: "上传失败", desc: state.uploadErrorMessage }
+      : { title: "点击或拖拽上传照片", desc: "支持 JPG / PNG / HEIC 格式，大小不超过 10MB" };
+  const checkCopy = photoCheckCopy(state.photoCheckResult);
+  const zoneImage = state.uploadStatus === "success" || state.uploadStatus === "uploading"
+    ? state.photoUrl
+    : PHOTO_UPLOAD_ASSETS.uploadPlaceholder;
+
+  useEffect(() => {
+    return () => {
+      if (state.photoUrl.startsWith("blob:")) URL.revokeObjectURL(state.photoUrl);
+    };
+  }, [state.photoUrl]);
+
+  const openPicker = () => fileRef.current?.click();
+
+  const updateUploadState = (next: Partial<AppState>) => {
+    setState((s) => ({ ...s, ...next }));
   };
-  return <main className="page"><PageTitle title="上传照片" text={`本次生成：${type.name}。支持 JPG / PNG / HEIC，最大 10MB。`} nav={nav} /><section className="upload-tips"><div><h2>拍照小贴士</h2><div className="do-dont"><Tip title="推荐这样拍" ok items={["正脸对镜头", "光线均匀明亮", "头发自然垂落", "背景干净简洁"]} /><Tip title="避免这样拍" items={["侧脸或低头", "光线昏暗 / 逆光", "刘海遮挡眉眼", "背景杂乱"]} /></div></div></section><section className="upload-box" onClick={() => fileRef.current?.click()}><input ref={fileRef} type="file" accept="image/png,image/jpeg,image/heic" hidden onChange={(e) => handleFile(e.target.files?.[0])} /><CloudUpload size={52} /><h2>点击或拖拽上传照片</h2><p>照片越清晰，报告越稳定</p>{state.photoUrl && <img src={state.photoUrl} alt="已上传照片预览" />}</section><div className="bottom-actions"><button className="btn primary full" onClick={() => nav("preferences")}>下一步<Sparkles size={18} /></button><button className="btn light full" onClick={() => setState((s) => ({ ...s, photoUrl: ASSETS.heroAlt, photoName: "示例照片" }))}>使用示例照片</button></div></main>;
+
+  const handleFile = async (file?: File) => {
+    if (!file) return;
+    if (fileRef.current) fileRef.current.value = "";
+    const error = validateUploadFile(file);
+    if (error) {
+      updateUploadState({ uploadStatus: "error", photoCheckResult: "failed", uploadErrorMessage: error });
+      showToast(error);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(file);
+    const selectionId = ++selectionRef.current;
+    updateUploadState({
+      uploadStatus: "uploading",
+      uploadErrorMessage: undefined,
+      photoCheckResult: undefined,
+      photoName: file.name,
+      photoUrl: previewUrl,
+      isGenerating: false,
+    });
+    try {
+      const result = await inspectPhotoQuality(file);
+      if (selectionRef.current !== selectionId) {
+        URL.revokeObjectURL(previewUrl);
+        return;
+      }
+      updateUploadState({
+        uploadStatus: "success",
+        photoCheckResult: result,
+        uploadErrorMessage: undefined,
+        photoName: file.name,
+        photoUrl: previewUrl,
+      });
+      showToast(result === "available" ? "照片可用，可继续生成" : "照片已上传，请确认清晰度");
+    } catch {
+      if (selectionRef.current !== selectionId) {
+        URL.revokeObjectURL(previewUrl);
+        return;
+      }
+      updateUploadState({
+        uploadStatus: "error",
+        photoCheckResult: "failed",
+        uploadErrorMessage: "照片读取失败，请重新上传",
+      });
+      URL.revokeObjectURL(previewUrl);
+      showToast("照片读取失败，请重新上传");
+    }
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      dragRestoreRef.current = state.uploadStatus === "dragging" ? "idle" : state.uploadStatus;
+      await handleFile(file);
+      return;
+    }
+    updateUploadState({ uploadStatus: dragRestoreRef.current });
+  };
+
+  const handleDragEnter = (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (state.uploadStatus !== "uploading") {
+      dragRestoreRef.current = state.uploadStatus === "dragging" ? "idle" : state.uploadStatus;
+      updateUploadState({ uploadStatus: "dragging" });
+    }
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    updateUploadState({ uploadStatus: dragRestoreRef.current });
+  };
+
+  const handleNext = () => {
+    if (isUploading) return showToast("照片还在处理中");
+    if (!canGoNext) return showToast("请先上传清晰照片");
+    if (state.photoCheckResult === "warning" && !window.confirm("当前照片可能影响生成效果，建议重新上传清晰正脸照。仍要继续吗？")) {
+      return;
+    }
+    nav("preferences");
+  };
+
+  const useDemoPhoto = () => {
+    if (state.photoUrl.startsWith("blob:")) URL.revokeObjectURL(state.photoUrl);
+    updateUploadState({
+      uploadStatus: "success",
+      photoCheckResult: "available",
+      uploadErrorMessage: undefined,
+      photoName: "示例照片",
+      photoUrl: ASSETS.heroAlt,
+    });
+    showToast("已使用示例照片");
+  };
+
+  return (
+    <main className="page upload-page">
+      <header className="upload-header">
+        <button className="upload-back-btn" onClick={() => nav("select")} aria-label="返回">
+          <ArrowLeft size={30} />
+        </button>
+        <h1>上传照片</h1>
+      </header>
+
+      <section className="report-card upload-report-card">
+        <div className="report-icon-wrap">
+          <img src={PHOTO_UPLOAD_ASSETS.reportBadge} alt="" />
+        </div>
+        <div className="report-copy">
+          <p className="report-title"><span>{intro.titlePrefix}</span><strong className="report-highlight">{intro.titleHighlight}</strong></p>
+          <span className="report-desc">{intro.description}</span>
+        </div>
+        <img className="report-card-sparkle report-card-sparkle-left" src={PHOTO_UPLOAD_ASSETS.sparklePair} alt="" />
+        <img className="report-card-sparkle report-card-sparkle-right" src={PHOTO_UPLOAD_ASSETS.sparkleLarge} alt="" />
+      </section>
+
+      <section className="photo-tips-card">
+        <div className="tips-title"><img src={PHOTO_UPLOAD_ASSETS.tinyStars} alt="" />拍照小贴士</div>
+        <div className="example-grid">
+          <ExampleCard example={PHOTO_TIPS.goodExample} tone="good" />
+          <ExampleCard example={PHOTO_TIPS.badExample} tone="bad" />
+        </div>
+        <div className="quick-tip-bar">
+          {PHOTO_TIPS.quickTips.map((tip, index) => (
+            <div className="quick-tip-item" key={tip.label}>
+              <img src={tip.icon} alt="" />
+              <span>{tip.label}</span>
+              {index < PHOTO_TIPS.quickTips.length - 1 && <i />}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section
+        className={`upload-zone-card ${state.uploadStatus === "error" ? "has-error" : ""}`}
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/heic,image/heif"
+          hidden
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+        <div
+          className={`upload-drop-zone ${state.uploadStatus === "dragging" ? "dragging" : ""}`}
+          onClick={openPicker}
+          onDragEnter={handleDragEnter}
+          onDragOver={(e) => e.preventDefault()}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openPicker(); }}
+        >
+          <img className="upload-icon" src={PHOTO_UPLOAD_ASSETS.uploadCloud} alt="" />
+          <h2 className="upload-title">{uploadCopy.title}</h2>
+          <p className="upload-desc">{uploadCopy.desc}</p>
+          {state.uploadStatus === "error" && state.uploadErrorMessage && <p className="upload-error">{state.uploadErrorMessage}</p>}
+          <div className="upload-preview-shell">
+            <img className="upload-preview-image" src={zoneImage} alt={state.uploadStatus === "success" ? "已上传照片预览" : "上传占位图"} />
+            {state.uploadStatus === "success" && <span>已上传照片预览</span>}
+          </div>
+        </div>
+      </section>
+
+      {state.uploadStatus === "success" && (
+        <section className={`uploaded-status-card ${checkCopy.tone}`}>
+          <img className="uploaded-thumb" src={state.photoUrl} alt="上传照片缩略图" />
+          <div className="uploaded-status-copy">
+            <div className={`status-pill ${checkCopy.tone}`}>
+              <img src={checkCopy.tone === "available" ? PHOTO_UPLOAD_ASSETS.checkGreen : checkCopy.tone === "warning" ? PHOTO_UPLOAD_ASSETS.checkPink : PHOTO_UPLOAD_ASSETS.crossGray} alt="" />
+              {checkCopy.title}
+            </div>
+            <p>{checkCopy.desc}</p>
+            <small>{state.photoName} · {state.photoUrl.startsWith("blob:") ? "本地预览" : "示例照片"}</small>
+          </div>
+          <img className="status-heart status-heart-one" src={PHOTO_UPLOAD_ASSETS.heartSingle} alt="" />
+          <img className="status-heart status-heart-two" src={PHOTO_UPLOAD_ASSETS.heartsDouble} alt="" />
+        </section>
+      )}
+
+      <div className="upload-action-bar">
+        <button className={`primary-button ${canGoNext ? "enabled" : "disabled"}`} disabled={!canGoNext} onClick={handleNext}>
+          {isUploading ? "处理中..." : <>下一步 <Sparkles size={20} /></>}
+        </button>
+        <button className="secondary-button" onClick={openPicker}>重新上传</button>
+        <button className="use-demo-link" onClick={useDemoPhoto}>没有合适照片？<strong>使用示例照片</strong></button>
+      </div>
+    </main>
+  );
 }
 
-function Tip({ title, items, ok }: { title: string; items: string[]; ok?: boolean }) {
-  return <div className={`tip ${ok ? "ok" : ""}`}><h3>{ok ? <Check /> : <Trash2 />}{title}</h3>{items.map((item) => <p key={item}>{item}</p>)}</div>;
+function ExampleCard({ example, tone }: { example: { title: string; image: string; checklist: readonly string[] }; tone: "good" | "bad" }) {
+  const ok = tone === "good";
+  return (
+    <article className={`example-card ${ok ? "good" : "bad"}`}>
+      <div className="example-title">
+        <img src={ok ? PHOTO_UPLOAD_ASSETS.checkPink : PHOTO_UPLOAD_ASSETS.crossGray} alt="" />
+        <h3>{example.title}</h3>
+      </div>
+      <div className="example-body">
+        <img className="example-image" src={example.image} alt={example.title} />
+        <ul>
+          {example.checklist.map((item) => (
+            <li key={item}>
+              <img src={ok ? PHOTO_UPLOAD_ASSETS.checkPink : PHOTO_UPLOAD_ASSETS.crossGray} alt="" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </article>
+  );
 }
 
-function PreferencesPage({ state, setState, nav }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; nav: (r: Route) => void }) {
-  return <main className="page"><PageTitle title="生成偏好" text="选择你更想要的方向，AI 会生成更贴合的报告。" nav={nav} />{(["style", "scene", "change"] as const).map((key, index) => <section className="pref-section" key={key}><h2><span>{index + 1}</span>{key === "style" ? "造型表达偏好" : key === "scene" ? "目标场景" : "改变幅度"}</h2><div className="option-grid">{preferenceOptions[key].map((value) => <button key={value} className={state.preferences[key] === value ? "selected" : ""} onClick={() => setState((s) => ({ ...s, preferences: { ...s.preferences, [key]: value } }))}><Sparkles size={18} />{value}<i /></button>)}</div></section>)}<div className="bottom-actions"><button className="btn primary full" onClick={() => nav("confirm")}>保存偏好</button><button className="btn light full" onClick={() => nav("upload")}>重新上传</button></div></main>;
+function PreferencesPage({
+  state,
+  setState,
+  nav,
+  showToast,
+}: {
+  state: AppState;
+  setState: React.Dispatch<React.SetStateAction<AppState>>;
+  nav: (r: Route) => void;
+  showToast: (t: string) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [reuploadOpen, setReuploadOpen] = useState(false);
+
+  const updateMultiple = (sectionId: "style" | "scene", optionId: string, maxSelected?: number) => {
+    setState((s) => {
+      const next = [...(sectionId === "style" ? s.preferences.stylePreferences : s.preferences.targetScenes)];
+      const index = next.indexOf(optionId);
+      if (index >= 0) {
+        next.splice(index, 1);
+      } else {
+        if (typeof maxSelected === "number" && next.length >= maxSelected) {
+          showToast(`最多选择 ${maxSelected} 个主要场景`);
+          return s;
+        }
+        next.push(optionId);
+      }
+      return {
+        ...s,
+        preferences: {
+          ...s.preferences,
+          [sectionId === "style" ? "stylePreferences" : "targetScenes"]: next,
+        },
+      };
+    });
+  };
+
+  const updateSingle = (optionId: string) => {
+    setState((s) => ({
+      ...s,
+      preferences: {
+        ...s.preferences,
+        changeIntensity: optionId,
+      },
+    }));
+  };
+
+  const handleSave = () => {
+    if (!state.preferences.stylePreferences.length) return showToast("请选择至少一个造型表达偏好");
+    if (!state.preferences.targetScenes.length) return showToast("请选择至少一个目标场景");
+    if (!state.preferences.changeIntensity) return showToast("请选择改变幅度");
+    setSaving(true);
+    window.setTimeout(() => {
+      setSaving(false);
+      nav("confirm");
+    }, 420);
+  };
+
+  const handleReuploadConfirm = () => {
+    setReuploadOpen(false);
+    setState((s) => ({
+      ...s,
+      route: "upload",
+      photoUrl: "",
+      photoName: "",
+      preferences: { ...DEFAULT_PREFERENCES },
+    }));
+    nav("upload");
+  };
+
+  return (
+    <main className="page preference-page">
+      <div className="preference-page__bg" aria-hidden="true">
+        <img className="preference-bg-cloud preference-bg-cloud--left" src={PREFERENCE_ASSETS.cloud} alt="" />
+        <img className="preference-bg-cloud preference-bg-cloud--right" src={PREFERENCE_ASSETS.cloud} alt="" />
+        <img className="preference-bg-heart" src={PREFERENCE_ASSETS.heart} alt="" />
+        <img className="preference-bg-twinkle preference-bg-twinkle--pink" src={PREFERENCE_ASSETS.twinklePink} alt="" />
+        <img className="preference-bg-twinkle preference-bg-twinkle--white" src={PREFERENCE_ASSETS.twinkleWhite} alt="" />
+      </div>
+
+      <div className="preference-page__inner">
+        <PreferenceHeader onBack={() => nav("upload")} />
+
+        {preferenceSections.map((section) => (
+          <PreferenceSectionCard
+            key={section.id}
+            section={section}
+            selectedValues={section.id === "style" ? state.preferences.stylePreferences : section.id === "scene" ? state.preferences.targetScenes : [state.preferences.changeIntensity]}
+            onToggle={(optionId) => {
+              if (section.mode === "single") {
+                updateSingle(optionId);
+              } else {
+                updateMultiple(section.id as "style" | "scene", optionId, section.maxSelected);
+              }
+            }}
+          />
+        ))}
+
+      <BottomActionBar saving={saving} onSave={handleSave} onReupload={() => setReuploadOpen(true)} />
+      </div>
+
+      {reuploadOpen && <ReuploadDialog onCancel={() => setReuploadOpen(false)} onConfirm={handleReuploadConfirm} />}
+    </main>
+  );
+}
+
+function PreferenceHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <header className="preference-header">
+      <button className="preference-back" onClick={onBack} aria-label="返回上一页">
+        <ArrowLeft size={30} />
+      </button>
+      <div className="preference-header__copy">
+        <h1>生成偏好</h1>
+      </div>
+      <div className="preference-header__decor" aria-hidden="true">
+        <img className="decor-twinkle decor-twinkle--1" src={PREFERENCE_ASSETS.twinkleWhite} alt="" />
+        <img className="decor-twinkle decor-twinkle--2" src={PREFERENCE_ASSETS.twinklePink} alt="" />
+      </div>
+    </header>
+  );
+}
+
+function PreferenceSectionCard({
+  section,
+  selectedValues,
+  onToggle,
+}: {
+  section: (typeof preferenceSections)[number];
+  selectedValues: string[];
+  onToggle: (optionId: string) => void;
+}) {
+  return (
+    <section className="preference-section">
+      <img className="section-corner-decor" src={section.icon} alt="" aria-hidden="true" />
+      <div className="section-header">
+        <div className="section-title">
+          <img className="section-icon" src={section.icon} alt="" />
+          <span className="section-index">{section.index}</span>
+          <h2>{section.title}</h2>
+        </div>
+        <p className="section-desc">{section.desc}</p>
+      </div>
+      <div className={`option-grid option-grid--${section.id}`}>
+        {section.options.map((option) => (
+          <PreferenceOptionCard
+            key={option.id}
+            option={option}
+            selected={selectedValues.includes(option.id)}
+            mode={section.mode}
+            onClick={() => onToggle(option.id)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PreferenceOptionCard({
+  option,
+  selected,
+  mode,
+  onClick,
+}: {
+  option: (typeof preferenceSections)[number]["options"][number];
+  selected: boolean;
+  mode: "single" | "multiple";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`preference-option ${selected ? "selected" : ""} ${mode}`}
+      onClick={onClick}
+      style={{ "--option-accent": option.color, "--option-bg": option.bg } as React.CSSProperties}
+    >
+      <img className="preference-option__tile" src={option.tile || option.icon} alt="" aria-hidden="true" />
+      <img className="preference-option__icon" src={option.icon} alt="" aria-hidden="true" />
+      <span className="preference-option__label">{option.label}</span>
+      <span className="preference-option__check">
+        <img src={selected ? PREFERENCE_ASSETS.radioSelected : PREFERENCE_ASSETS.radioEmpty} alt="" aria-hidden="true" />
+      </span>
+    </button>
+  );
+}
+
+function BottomActionBar({ saving, onSave, onReupload }: { saving: boolean; onSave: () => void; onReupload: () => void }) {
+  return (
+    <div className="preference-actions">
+      <button className="save-button" onClick={onSave} disabled={saving}>
+        {saving ? "保存中..." : "保存偏好"}
+      </button>
+      <button className="reupload-button" onClick={onReupload}>
+        重新上传
+      </button>
+    </div>
+  );
+}
+
+function ReuploadDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="dialog-backdrop" onClick={onCancel}>
+      <section className="dialog-card" onClick={(e) => e.stopPropagation()}>
+        <img src={PREFERENCE_ASSETS.heart} alt="" />
+        <h3>重新上传会清空当前偏好，确认继续吗？</h3>
+        <p>确认后将返回上传页，重新选择照片和偏好。</p>
+        <div className="dialog-actions">
+          <button className="reupload-button" onClick={onCancel}>取消</button>
+          <button className="save-button" onClick={onConfirm}>确认继续</button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; type: ReportType; nav: (r: Route) => void; startGenerate: () => void }) {
-  return <main className="page"><PageTitle title="确认生成" text="确认本次消耗权益和报告内容。预计耗时 2-5 分钟，生成失败不会消耗权益。" nav={nav} /><section className="confirm-card"><div className="confirm-photo"><img src={state.photoUrl} alt="上传照片" /><div><h2>已上传照片 <BadgeCheck /></h2><p>{state.photoName}</p><span>建议：自然光、妆容清淡、露出额头和耳朵</span></div></div><div className="consume"><PackagePlus /><b>本次将消耗：{type.rightKey === "comprehensive" ? "综合形象报告 ×1" : "专题报告 ×1"}</b></div><div className="report-detail"><h2>{type.name}</h2><p>{type.subtitle}</p><div className="chip-row">{type.modules.map((m) => <span key={m}>{m}</span>)}</div><div className="chip-row strong">{Object.values(state.preferences).map((m) => <span key={m}>{m}</span>)}</div><p className="time"><Clipboard size={16} />预计耗时 2-5 分钟，生成失败会自动重试 1 次并返还权益</p></div><label className="privacy"><input type="checkbox" checked={state.privacyAccepted} onChange={(e) => setState((s) => ({ ...s, privacyAccepted: e.target.checked }))} />我确认上传的是本人照片，知悉并同意用于生成专属形象分析报告。我们将严格保护您的隐私，仅用于报告生成，不会用于其他用途。</label></section><div className="bottom-actions"><button className="btn primary full glossy" onClick={startGenerate}>开始生成报告<Sparkles /></button><button className="btn light full" onClick={() => nav("preferences")}>返回修改</button></div></main>;
+  const selectedPreferenceLabels = [
+    ...state.preferences.stylePreferences.map((item) => ({ key: `style-${item}`, label: preferenceLabel("style", item) })),
+    ...state.preferences.targetScenes.map((item) => ({ key: `scene-${item}`, label: preferenceLabel("scene", item) })),
+    { key: `range-${state.preferences.changeIntensity}`, label: preferenceLabel("range", state.preferences.changeIntensity) },
+  ];
+  const isInvalidPhoto = state.uploadStatus === "error" || state.photoCheckResult === "failed";
+  const hasPhoto = Boolean(state.photoUrl);
+  const canGenerate = hasPhoto && !isInvalidPhoto && state.privacyAccepted && state.rights[type.rightKey] > 0 && !state.isGenerating;
+  const photoState: "uploaded" | "empty" | "invalid" = !hasPhoto ? "empty" : isInvalidPhoto ? "invalid" : "uploaded";
+  const photoTitle = photoState === "invalid" ? "照片不合规" : photoState === "empty" ? "未上传照片" : "已上传照片";
+  const photoCopy = photoState === "invalid" ? "请返回修改后重新上传" : photoState === "empty" ? "请先上传一张正面清晰照" : "正面清晰照";
+  const suggestion = photoState === "invalid" ? "建议：选择正脸、光线均匀、五官清晰的照片" : "建议：自然光、妆容清淡、露出额头和耳朵";
+  const privacyText = "我确认上传的是本人照片，知悉并同意用于生成专属形象分析报告。我们将严格保护您的隐私，仅用于报告生成，不会用于其他用途。";
+  const photoSrc = state.photoUrl || CONFIRM_GENERATE_ASSETS.uploadedPhoto;
+
+  return (
+    <main className="page confirm-generate-page">
+      <img className="confirm-bg confirm-bg-left" src={CONFIRM_GENERATE_ASSETS.decoSmall} alt="" aria-hidden="true" />
+      <img className="confirm-bg confirm-bg-right" src={CONFIRM_GENERATE_ASSETS.decoLarge} alt="" aria-hidden="true" />
+
+      <header className="confirm-header">
+        <button className="confirm-back" onClick={() => nav("preferences")} aria-label="返回修改">
+          <img src={CONFIRM_GENERATE_ASSETS.back} alt="" aria-hidden="true" />
+        </button>
+        <h1>确认生成</h1>
+        <span />
+      </header>
+
+      <section className="confirm-photo-card confirm-fade-in" style={{ animationDelay: "0ms" }}>
+        <div className="confirm-photo-preview">
+          <img src={photoSrc} alt={photoTitle} />
+        </div>
+        <div className="confirm-photo-copy">
+          <div className="confirm-photo-head">
+            <div>
+              <h2>{photoTitle}</h2>
+              <p>{photoCopy}</p>
+            </div>
+            {photoState === "uploaded" && <img className="confirm-status-badge" src={CONFIRM_GENERATE_ASSETS.check} alt="" aria-hidden="true" />}
+          </div>
+          <div className="confirm-photo-type">{type.id === "comprehensive" ? "综合形象报告专用" : type.name}</div>
+          <div className="confirm-photo-divider" />
+          <div className="confirm-photo-tip">
+            <img src={CONFIRM_GENERATE_ASSETS.tip} alt="" aria-hidden="true" />
+            <span>{suggestion}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="confirm-cost-card confirm-fade-in" style={{ animationDelay: "80ms" }}>
+        <img className="confirm-cost-icon" src={CONFIRM_GENERATE_ASSETS.token} alt="" aria-hidden="true" />
+        <p>
+          <span>本次将消耗：</span>
+          <strong>{type.id === "comprehensive" ? "综合形象报告 × 1" : "专题报告 × 1"}</strong>
+        </p>
+        <div className="confirm-cost-sparkles" aria-hidden="true">
+          <img src={CONFIRM_GENERATE_ASSETS.decoSmall} alt="" />
+          <img src={CONFIRM_GENERATE_ASSETS.decoLarge} alt="" />
+        </div>
+      </section>
+
+      <section className="confirm-report-card confirm-fade-in" style={{ animationDelay: "120ms" }}>
+        <div className="confirm-report-head">
+          <img className="confirm-report-illus left" src={CONFIRM_GENERATE_ASSETS.report} alt="" aria-hidden="true" />
+          <div className="confirm-report-copy">
+            <div className="confirm-report-title-row">
+              <h2>{type.name}</h2>
+              <span>全案专享</span>
+            </div>
+            <p>{type.subtitle}</p>
+          </div>
+          <img className="confirm-report-illus right" src={CONFIRM_GENERATE_ASSETS.folderHeart} alt="" aria-hidden="true" />
+        </div>
+
+        <div className="confirm-block">
+          <div className="confirm-block-title"><i />包含模块</div>
+          <div className="confirm-tag-grid">
+            {CONFIRM_MODULES.map((item) => (
+              <div className="confirm-module-tag" key={item.key}>
+                <img src={item.icon} alt="" aria-hidden="true" />
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="confirm-block">
+          <div className="confirm-block-title"><i />已选择偏好</div>
+          <div className="confirm-tag-grid confirm-preference-grid">
+            {CONFIRM_PREFERENCES.map((item, index) => {
+              const selectedLabel = selectedPreferenceLabels[index]?.label || item.label;
+              return (
+                <div className="confirm-preference-tag" key={item.key}>
+                  <img src={item.icon} alt="" aria-hidden="true" />
+                  <span>{selectedLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="confirm-time-tip">
+          <img src={CONFIRM_GENERATE_ASSETS.clock} alt="" aria-hidden="true" />
+          <span>预计耗时 1–3 分钟，生成失败不会消耗权益</span>
+        </div>
+      </section>
+
+      <button
+        type="button"
+        className={`confirm-privacy-row confirm-fade-in ${state.privacyAccepted ? "checked" : ""}`}
+        style={{ animationDelay: "160ms" }}
+        onClick={() => setState((s) => ({ ...s, privacyAccepted: !s.privacyAccepted }))}
+      >
+        <span className="confirm-checkbox">{state.privacyAccepted && <img src={CONFIRM_GENERATE_ASSETS.checkbox} alt="" aria-hidden="true" />}</span>
+        <span className="confirm-privacy-copy">
+          <strong>我确认上传的是本人照片</strong>
+          <span>{privacyText}</span>
+        </span>
+      </button>
+
+      <div className="confirm-bottom-actions confirm-fade-in" style={{ animationDelay: "200ms" }}>
+        <button className="confirm-primary-btn" disabled={!canGenerate} onClick={startGenerate}>
+          <span>{state.isGenerating ? "生成中..." : "开始生成报告"}</span>
+          <Sparkles size={18} />
+        </button>
+        <button className="confirm-secondary-btn" onClick={() => nav("preferences")}>返回修改</button>
+      </div>
+    </main>
+  );
 }
 
 function ProgressPage({ progress, nav }: { progress: number; nav: (r: Route) => void }) {
-  const steps = [["已提交", 8], ["照片质量检测中", 25], ["方案生成中", 60], ["报告排版中", 85], ["生成完成", 100]] as const;
-  return <main className="page progress-page"><h1><span>报告</span>正在生成中</h1><p>预计需要 2-5 分钟，可切到其他页面，回来自动同步进度</p><div className="ring" style={{ "--p": `${progress}%` } as React.CSSProperties}><b>{progress}%</b><span>生成中...</span></div><section className="progress-list">{steps.map(([label, value], index) => <div key={label} className={progress >= value ? "done" : progress > steps[Math.max(0, index - 1)][1] ? "active" : ""}><i>{progress >= value ? <Check /> : index + 1}</i><div><b>{label}</b><p>{progress >= value ? "已完成" : "等待处理"}</p></div></div>)}</section><button className="btn primary" onClick={() => nav("home")}>稍后再看</button></main>;
+  const displayProgress = useAnimatedNumber(progress, 720);
+  const fitScale = useViewportFitScale(760, 1280);
+  const percent = Math.round(displayProgress);
+  const complete = progress >= 100;
+  const statusText = complete ? "生成完成" : "生成中...";
+  const bottomLabel = complete ? "查看报告" : "稍后再看";
+  const handleBottomClick = () => {
+    if (complete) {
+      nav("result");
+      return;
+    }
+    nav("home");
+  };
+
+  return (
+    <main className="page progress-stage" style={{ "--progress-fit-scale": fitScale } as React.CSSProperties}>
+      <div className="progress-stage-layout">
+        <div className="progress-stage-bg">
+          <img className="progress-bg-image" src={REPORT_PROGRESS_ASSETS.background} alt="" aria-hidden="true" />
+          <span className="progress-bg-glow progress-bg-glow-a" />
+          <span className="progress-bg-glow progress-bg-glow-b" />
+        </div>
+
+        <img className="progress-decoration sparkle-left" src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
+        <img className="progress-decoration sparkle-right" src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
+        <img className="progress-decoration sparkle-white" src={REPORT_PROGRESS_ASSETS.sparkleWhite} alt="" aria-hidden="true" />
+        <img className="progress-decoration sparkle-gray" src={REPORT_PROGRESS_ASSETS.sparkleGray} alt="" aria-hidden="true" />
+        <img className="progress-decoration heart-left" src={REPORT_PROGRESS_ASSETS.heart} alt="" aria-hidden="true" />
+        <img className="progress-decoration wand-right" src={REPORT_PROGRESS_ASSETS.wand} alt="" aria-hidden="true" />
+        <img className="progress-decoration cloud-mascot" src={REPORT_PROGRESS_ASSETS.cloud} alt="" aria-hidden="true" />
+        <img className="progress-decoration sparkle-cluster" src={REPORT_PROGRESS_ASSETS.sparkleCluster} alt="" aria-hidden="true" />
+        <img className="progress-decoration bottom-cloud-left" src={REPORT_PROGRESS_ASSETS.bottomCloudLeft} alt="" aria-hidden="true" />
+        <img className="progress-decoration bottom-cloud-right" src={REPORT_PROGRESS_ASSETS.bottomCloudRight} alt="" aria-hidden="true" />
+        <img className="progress-decoration soft-dot-a" src={REPORT_PROGRESS_ASSETS.lightDot} alt="" aria-hidden="true" />
+        <img className="progress-decoration soft-dot-b" src={REPORT_PROGRESS_ASSETS.lightDot} alt="" aria-hidden="true" />
+
+        <header className="progress-nav">
+          <button className="progress-back" onClick={() => nav("home")} aria-label="返回上一页">
+            <ArrowLeft size={26} />
+          </button>
+          <h2>生成进度</h2>
+          <span />
+        </header>
+
+        <section className="progress-title">
+          <div className="progress-title-decor">
+            <img src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
+            <img src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
+          </div>
+          <h1><span>{complete ? "报告" : "报告"}</span>{complete ? "生成完成" : "正在生成中"}</h1>
+          <p>预计需要 <strong>1~3 分钟</strong>，可切到其他页面，回来自动同步进度</p>
+        </section>
+
+        <section className="progress-ring-shell" aria-label="生成进度">
+          <div className="progress-ring-shadow" />
+          <svg className="progress-ring-svg" viewBox="0 0 260 260" aria-hidden="true">
+            <defs>
+              <linearGradient id="progressPinkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#ff9abb" />
+                <stop offset="55%" stopColor="#ff5f95" />
+                <stop offset="100%" stopColor="#ff2f78" />
+              </linearGradient>
+            </defs>
+            <circle className="progress-ring-outer" cx="130" cy="130" r="103" />
+            <circle className="progress-ring-thin" cx="130" cy="130" r="112" />
+            <circle className="progress-ring-bg" cx="130" cy="130" r="96" />
+            <circle
+              className="progress-ring-bar"
+              cx="130"
+              cy="130"
+              r="96"
+              style={{ strokeDashoffset: `${603 - (603 * progress) / 100}` }}
+            />
+          </svg>
+          <div className="progress-ring-content">
+            <div className={`progress-percent ${percent >= 100 ? "is-100" : ""}`} aria-label={`${percent} percent`}>{percent}<span>%</span></div>
+            <div className="progress-status">{statusText}</div>
+          </div>
+          <span className="progress-ring-dot" style={{ "--progress": progress } as React.CSSProperties} />
+        </section>
+
+        <section className="progress-card" aria-label="步骤进度">
+          <span className="progress-timeline-line" aria-hidden="true" />
+          {REPORT_PROGRESS_STEPS.map((step, index) => {
+            const status: ProgressStepStatus = progress >= step.doneAt
+              ? "done"
+              : progress >= step.activeAt
+                ? "active"
+                : "pending";
+            return (
+              <React.Fragment key={step.id}>
+                <article className={`progress-step ${status}`}>
+                  {status === "active" && <img className="progress-step-highlight" src={REPORT_PROGRESS_ASSETS.activeCard} alt="" aria-hidden="true" />}
+                  <div className={`progress-step-badge ${status}`}>
+                    {status === "done" ? <Check size={22} strokeWidth={3.1} /> : <span>{step.id}</span>}
+                  </div>
+                  <div className="progress-step-copy">
+                    <strong>{step.title}</strong>
+                    <p>{step.desc}</p>
+                  </div>
+                  <div className="progress-step-state">
+                    {status === "active" ? (
+                      <div className="progress-loading-dots" aria-hidden="true">
+                        {Array.from({ length: 8 }).map((_, dotIndex) => <span key={dotIndex} />)}
+                      </div>
+                    ) : status === "done" && complete ? (
+                      <Check size={18} />
+                    ) : status === "done" ? (
+                      <img className="progress-card-sparkle" src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
+                    ) : (
+                      <img className="progress-pending-sparkle" src={REPORT_PROGRESS_ASSETS.sparkleGray} alt="" aria-hidden="true" />
+                    )}
+                  </div>
+                </article>
+                {index < REPORT_PROGRESS_STEPS.length - 1 && <img className="progress-divider" src={REPORT_PROGRESS_ASSETS.dashedDivider} alt="" aria-hidden="true" />}
+              </React.Fragment>
+            );
+          })}
+        </section>
+
+        <button className={`progress-bottom-btn ${complete ? "is-complete" : ""}`} onClick={handleBottomClick}>
+          {bottomLabel}
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function useAnimatedNumber(target: number, duration = 700) {
+  const [value, setValue] = useState(target);
+  const currentRef = useRef(target);
+  useEffect(() => {
+    const from = currentRef.current;
+    const to = target;
+    if (from === to) return;
+    let raf = 0;
+    const start = performance.now();
+    const frame = (now: number) => {
+      const ratio = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - ratio, 3);
+      const next = from + (to - from) * eased;
+      currentRef.current = next;
+      setValue(next);
+      if (ratio < 1) {
+        raf = window.requestAnimationFrame(frame);
+      } else {
+        currentRef.current = to;
+      }
+    };
+    raf = window.requestAnimationFrame(frame);
+    return () => window.cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return value;
+}
+
+function useViewportFitScale(baseWidth: number, baseHeight: number) {
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const update = () => {
+      const widthScale = (window.innerWidth - 24) / baseWidth;
+      const heightScale = (window.innerHeight - 24) / baseHeight;
+      const next = Math.min(1, Math.max(0.56, Math.min(widthScale, heightScale)));
+      setScale(next);
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [baseHeight, baseWidth]);
+  return scale;
 }
 
 function ResultPage({ state, nav, showToast }: { state: AppState; nav: (r: Route) => void; showToast: (t: string) => void }) {
@@ -642,11 +1883,15 @@ function ResultPage({ state, nav, showToast }: { state: AppState; nav: (r: Route
   if (!report) return <Empty title="还没有生成报告" text="请先选择报告类型并完成生成。" action="选择报告" onClick={() => nav("select")} />;
   const type = REPORT_TYPES.find((item) => item.id === report.type)!;
   const persona = PERSONAS[report.persona];
-  return <main className="page result-page"><PageTitle title="查看结果" text="长按报告图可保存，支持下载和准备小红书分享。" nav={nav} /><div className="result-layout"><aside className="result-actions"><RightsPills rights={state.rights} /><button className="btn primary full" onClick={() => downloadNode("report-card", "aisea-report.html", showToast)}><Download />下载完整报告</button><button className="btn gold full" onClick={() => setShareOpen(true)}><Share2 />一键准备小红书分享</button><button className="btn light full" onClick={() => nav("select")}><Plus />继续生成专题报告</button><details><summary>查看生图指令</summary><pre>{report.prompt}</pre></details></aside><ReportCanvas id="report-card" type={type} persona={persona} photo={state.photoUrl} /></div>{shareOpen && <ShareSheet report={report} type={type} photo={state.photoUrl} close={() => setShareOpen(false)} showToast={showToast} />}</main>;
+  return <main className="result-page"><ResultNavbar nav={nav} onShare={() => setShareOpen(true)} /><ReportCanvas id="report-card" type={type} persona={persona} /><ResultActionBar rights={state.rights} onDownload={() => downloadNode("report-card", "aisea-report.png", showToast)} onGenerate={() => nav("select")} onShare={() => setShareOpen(true)} />{shareOpen && <ShareSheet report={report} type={type} photo={state.photoUrl} close={() => setShareOpen(false)} showToast={showToast} />}</main>;
 }
 
-function ReportCanvas({ id, type, persona, photo }: { id: string; type: ReportType; persona: typeof PERSONAS.softFrench; photo: string }) {
-  return <article className="report-canvas" id={id}><header><div><h2>{type.id === "comprehensive" ? persona.reportTitle : type.name}</h2><p>你的专属综合形象报告</p><div className="chip-row">{persona.keywords.map((k) => <span key={k}>{k}</span>)}</div></div><img src={photo} alt="报告人物" /></header><div className="report-modules">{["发型推荐", "发色推荐", "色彩分析", "妆容建议", "穿搭风格建议", "配饰推荐", "氛围雷区提醒", "一键抄作业清单"].map((title, idx) => <section key={title}><span>{idx + 1}</span><h3>{title}</h3>{idx === 1 ? <div className="hair-swatches"><i /><i /><i /><i /><i /></div> : idx === 2 ? <div className="palette">{persona.palette.map((c) => <i key={c} style={{ background: c }} />)}</div> : <VisualSlot label={title} tone={type.id} compact />}<p>{moduleText(title, persona.title)}</p></section>)}</div><footer>你的专属风格关键词：{persona.keywords.join(" ｜ ")}。好看又舒服，就是你的风格。</footer></article>;
+function ResultNavbar({ nav, onShare }: { nav: (r: Route) => void; onShare: () => void }) {
+  return <header className="result-navbar"><button className="result-nav-btn" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><h1>查看结果</h1><button className="result-nav-btn" onClick={onShare} aria-label="分享报告"><Share2 /></button></header>;
+}
+
+function ResultActionBar({ rights, onDownload, onGenerate, onShare }: { rights: Rights; onDownload: () => void; onGenerate: () => void; onShare: () => void }) {
+  return <footer className="result-bottom-bar"><div className="result-rights"><span><FileText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span><span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div><div className="result-primary-actions"><button className="result-download-btn" onClick={onDownload}><Download /><span>下载完整报告<small>高清大图 保存永久</small></span></button><button className="result-generate-btn" onClick={onGenerate}><PackagePlus /><span>继续生成专题报告<small>深度解锁更多变美方案</small></span></button></div><button className="result-share-btn" onClick={onShare}><Heart /><span className="result-share-copy"><b>分享你的变美报告</b><small>记录美好蜕变，收获更多赞美与灵感</small></span><span className="result-share-channels"><i>小红书</i><i>微信</i><i>朋友圈</i></span></button></footer>;
 }
 
 function VisualSlot({ label, tone, compact = false }: { label: string; tone: string; compact?: boolean }) {
@@ -660,18 +1905,66 @@ function VisualSlot({ label, tone, compact = false }: { label: string; tone: str
   return <div className={`visual-slot tone-${tone} ${compact ? "compact" : ""}`}><span>{icons[tone] || <ImageDown />}</span><b>{label}</b><small>素材占位</small></div>;
 }
 
-function moduleText(title: string, persona: string) {
-  const map: Record<string, string> = {
-    发型推荐: "优先尝试轻层次、自然卷度和脸周修饰，让整体更轻盈。",
-    发色推荐: "低饱和棕调更耐看，黑茶色、冷茶棕、摩卡棕都适合日常。",
-    色彩分析: "柔和浅色和低饱和色更协调，高饱和色建议小面积点缀。",
-    妆容建议: "清透底妆、自然眉、奶茶大地色眼妆和豆沙唇更提气色。",
-    穿搭风格建议: `${persona}路线适合统一色系，材质轻盈，有一点精致细节。`,
-    配饰推荐: "小巧耳饰、细链项链、浅色包更能增加完整度。",
-    氛围雷区提醒: "谨慎尝试厚重刘海、高饱和大面积颜色和过多复杂配饰。",
-    一键抄作业清单: "发尾做轻层次，上衣选浅色，妆容重点放在气色。",
-  };
-  return map[title];
+function ReportCanvas({ id, type, persona }: { id: string; type: ReportType; persona: typeof PERSONAS.softFrench }) {
+  const title = type.id === "comprehensive" ? BEAUTY_REPORT.title : `${type.name}\n变美报告`;
+  return (
+    <article className="report-canvas beauty-report-canvas" id={id}>
+      <HeroBanner title={title} persona={persona} />
+      <div className="beauty-report-grid">
+        <SectionCard index={1} title="发型推荐" className="span-wide"><HairstyleSection /></SectionCard>
+        <SectionCard index={2} title="发色推荐"><HairColorSection /></SectionCard>
+        <SectionCard index={3} title="色彩分析"><ColorAnalysisSection /></SectionCard>
+        <SectionCard index={4} title="妆容建议" className="span-wide"><MakeupSection /></SectionCard>
+        <SectionCard index={5} title="穿搭风格建议" className="span-wide"><OutfitSection /></SectionCard>
+        <SectionCard index={6} title="配饰推荐"><AccessorySection /></SectionCard>
+        <SectionCard index={7} title="氛围雷区（避免这些会减分哦）" className="span-wide"><AvoidSection /></SectionCard>
+        <SectionCard index={8} title="一键抄作业清单"><ChecklistSection /></SectionCard>
+      </div>
+      <footer className="keyword-summary"><Heart size={20} /><b>你的专属风格关键词：温柔学姐 ｜ 清新自然 ｜ 气质治愈</b><span>好看又舒服，就是你的风格！</span><Sparkles size={22} /></footer>
+    </article>
+  );
+}
+
+function HeroBanner({ title, persona }: { title: string; persona: typeof PERSONAS.softFrench }) {
+  return <section className="beauty-hero"><div className="beauty-hero-copy"><h2>{title}</h2><p>{BEAUTY_REPORT.subtitle}</p><div className="beauty-tag-list">{BEAUTY_REPORT.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><blockquote>{BEAUTY_REPORT.quote}</blockquote><em>{BEAUTY_REPORT.script}</em></div><img className="beauty-hero-person" src={BEAUTY_REPORT_ASSETS.heroPerson} alt={persona.title} decoding="async" /><div className="beauty-keyword-card"><h3>形象关键词</h3>{BEAUTY_REPORT.keywords.map(([name, desc]) => <div key={name}><Sparkles size={24} /><span><b>{name}</b><small>{desc}</small></span></div>)}<p>You look so pretty!</p></div></section>;
+}
+
+function SectionCard({ index, title, children, className = "" }: { index: number; title: string; children: React.ReactNode; className?: string }) {
+  return <section className={`beauty-section-card ${className}`}><div className="beauty-section-title"><span>{index}</span><h3>{title}</h3></div>{children}</section>;
+}
+
+function HairstyleSection() {
+  return <div className="hairstyle-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.hairstyles} alt="发型推荐五连图" loading="lazy" decoding="async" /><div className="hairstyle-labels">{BEAUTY_REPORT.hairstyles.map(([name, desc]) => <span key={name}><b>{name}</b><small>{desc}</small></span>)}</div></div>;
+}
+
+function HairColorSection() {
+  return <div className="haircolor-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.hairColors} alt="发色推荐色卡" loading="lazy" decoding="async" /><div className="haircolor-labels">{BEAUTY_REPORT.hairColors.map((name) => <span key={name}>{name}</span>)}</div><p>温柔显白，提亮气色</p></div>;
+}
+
+function ColorAnalysisSection() {
+  const recommended = ["#f7b3a5", "#f9d4c9", "#f8e4d6", "#fff2df", "#e6e6be"];
+  const avoid = ["#f39a8d", "#f3aaa8", "#bd7c85", "#a86f68", "#8c3f3d"];
+  return <div className="color-analysis-section"><article><h4>推荐色盘 <small>柔和明亮</small></h4><div className="color-chip-row">{recommended.map((color) => <i key={color} style={{ background: color }} />)}</div><p>适合温柔清新的你，提亮肤色，气质加分。</p></article><article><h4>避免色盘 <small>对比过强</small></h4><div className="color-chip-row">{avoid.map((color) => <i key={color} style={{ background: color }} />)}</div><p>高饱和与深暗色容易沉闷，降低亲和力。</p></article></div>;
+}
+
+function MakeupSection() {
+  return <div className="makeup-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.makeup} alt="妆容建议拼图" loading="lazy" decoding="async" /><div className="makeup-labels">{BEAUTY_REPORT.makeup.map(([title, subtitle]) => <span key={title}><b>{title}</b><small>{subtitle}</small></span>)}</div></div>;
+}
+
+function OutfitSection() {
+  return <div className="outfit-section">{BEAUTY_REPORT.outfits.map(([title, image, caption]) => <article key={title}><img src={image} alt={title} loading="lazy" decoding="async" /><b>{title}</b><p>{caption}</p></article>)}</div>;
+}
+
+function AccessorySection() {
+  return <div className="accessory-section"><img src={BEAUTY_REPORT_ASSETS.accessories} alt="配饰推荐四宫格" loading="lazy" decoding="async" /><div>{BEAUTY_REPORT.accessories.map(([title, desc]) => <span key={title}><b>{title}</b><small>{desc}</small></span>)}</div></div>;
+}
+
+function AvoidSection() {
+  return <div className="avoid-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.avoid} alt="氛围雷区五连图" loading="lazy" decoding="async" /><div className="avoid-labels">{BEAUTY_REPORT.avoidItems.map(([title, reason]) => <span key={title}><b>{title}</b><small>{reason}</small></span>)}</div></div>;
+}
+
+function ChecklistSection() {
+  return <div className="checklist-section">{BEAUTY_REPORT.checklist.map(([title, desc]) => <div key={title}><Check size={18} /><span><b>{title}</b><small>{desc}</small></span><button>去试试</button></div>)}</div>;
 }
 
 function ShareSheet({ report, type, photo, close, showToast }: { report: UserReport; type: ReportType; photo: string; close: () => void; showToast: (t: string) => void }) {
