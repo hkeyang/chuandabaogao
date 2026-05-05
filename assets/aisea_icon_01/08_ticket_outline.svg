@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="pinkGrad" x1="64" y1="30" x2="192" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF86B0"/>
+      <stop offset="1" stop-color="#FF2F7A"/>
+    </linearGradient>
+    <linearGradient id="pinkSoft" x1="64" y1="28" x2="196" y2="230" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF4F8"/>
+      <stop offset="1" stop-color="#FFD3E2"/>
+    </linearGradient>
+    <linearGradient id="orangeGrad" x1="54" y1="30" x2="202" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7C15D"/>
+      <stop offset="1" stop-color="#DB8D25"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#FF4D8D" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  
+  
+  <path d="M42 98C38 74 56 56 80 60L198 80C209 82 216 93 214 104L211 122C194 120 178 132 175 149C172 166 184 182 200 185L197 203C195 215 183 223 171 221L53 201C29 197 18 171 34 152C41 143 43 130 39 119L42 98Z" fill="white" stroke="url(#pinkGrad)" stroke-width="14" stroke-linejoin="round" filter="url(#softShadow)"/>
+  <path d="M91 85L78 169" stroke="#FF3F82" stroke-width="10" stroke-linecap="round" stroke-dasharray="11 17"/>
+  <path d="M115 122L169 131" stroke="#FF3F82" stroke-width="11" stroke-linecap="round"/>
+  <path d="M108 155L150 162" stroke="#FF3F82" stroke-width="11" stroke-linecap="round" opacity="0.85"/>
+
+</svg>

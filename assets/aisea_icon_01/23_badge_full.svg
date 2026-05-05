@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="72" viewBox="0 0 180 72" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="180" y2="72" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6BE56"/>
+      <stop offset="1" stop-color="#DB8D25"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="72" rx="22" fill="url(#g)"/>
+  <text x="90" y="46" text-anchor="middle" font-size="30" font-weight="900" font-family="Arial, PingFang SC, Microsoft YaHei, sans-serif" fill="white">最完整</text>
+</svg>

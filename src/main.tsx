@@ -36,6 +36,32 @@ import type { AdminState, AdminUser, AuditLog, Coupon, PersonaId, Product, Produ
 type Route = "home" | "purchase" | "success" | "select" | "upload" | "preferences" | "confirm" | "progress" | "result" | "admin";
 type Toast = { id: number; text: string };
 
+const HOME_ASSETS = {
+  logo: new URL("../assets/aisea_icon_01/01_logo_mark.png", import.meta.url).href,
+  heroBg: new URL("../assets/aisea_icon_01/hero-background.png", import.meta.url).href,
+  heroPerson: new URL("../assets/aisea_icon_01/hair-hero-user01.png", import.meta.url).href,
+  heroPersonAlt: new URL("../assets/aisea_icon_01/hair-hero-user.png", import.meta.url).href,
+  forYou: new URL("../assets/aisea_icon_01/for you love.png", import.meta.url).href,
+  sparkle: new URL("../assets/aisea_icon_01/02_sparkle.svg", import.meta.url).href,
+  star: new URL("../assets/aisea_icon_01/03_star.svg", import.meta.url).href,
+  heart: new URL("../assets/aisea_icon_01/04_heart.svg", import.meta.url).href,
+  shoppingBag: new URL("../assets/aisea_icon_01/05_shopping_bag.svg", import.meta.url).href,
+  ticketPink: new URL("../assets/aisea_icon_01/06_ticket_pink.svg", import.meta.url).href,
+  ticketOrange: new URL("../assets/aisea_icon_01/07_ticket_orange.svg", import.meta.url).href,
+  ticketOutline: new URL("../assets/aisea_icon_01/08_ticket_outline.svg", import.meta.url).href,
+  gift: new URL("../assets/aisea_icon_01/09_gift.svg", import.meta.url).href,
+  profileUpload: new URL("../assets/aisea_icon_01/10_profile_upload.svg", import.meta.url).href,
+  lock: new URL("../assets/aisea_icon_01/11_lock.svg", import.meta.url).href,
+  arrowRight: new URL("../assets/aisea_icon_01/12_arrow_right.svg", import.meta.url).href,
+  xiaohongshu: new URL("../assets/aisea_icon_01/13_xiaohongshu.svg", import.meta.url).href,
+  wechat: new URL("../assets/aisea_icon_01/14_wechat.svg", import.meta.url).href,
+  moments: new URL("../assets/aisea_icon_01/15_moments.svg", import.meta.url).href,
+  reportCard: new URL("../assets/aisea_icon_01/16_report_card.svg", import.meta.url).href,
+  magicWand: new URL("../assets/aisea_icon_01/17_magic_wand.svg", import.meta.url).href,
+  hanger: new URL("../assets/aisea_icon_01/18_hanger.svg", import.meta.url).href,
+  palette: new URL("../assets/aisea_icon_01/19_palette.svg", import.meta.url).href,
+};
+
 interface AppState {
   route: Route;
   product?: Product;
@@ -354,18 +380,28 @@ function audit(logs: AuditLog[], actor: string, action: string, detail: string) 
 
 function Shell({ state, nav, children }: { state: AppState; nav: (route: Route) => void; children: React.ReactNode }) {
   const showBrandBar = state.route === "home" || state.route === "admin";
+  const homeBar = state.route === "home";
   return (
     <div className="app-shell">
       {showBrandBar && (
-        <header className="topbar">
+        <header className={`topbar ${homeBar ? "home-topbar" : ""}`}>
           <button className="brand reset" onClick={() => nav("home")} aria-label="返回首页">
-            <img src={ASSETS.logo} alt="AISea Logo" />
+            <img src={homeBar ? HOME_ASSETS.logo : ASSETS.logo} alt="AISea Logo" />
             <span><b>AISea</b><small>hair.aisea.space</small></span>
           </button>
           <nav className="nav-actions">
-            <button className="btn ghost" onClick={() => nav("purchase")}>套餐购买</button>
-            <button className="btn ghost" onClick={() => nav("select")}>选择报告</button>
-            <button className="btn primary small" onClick={() => nav("admin")}><ShieldCheck size={16} />后台</button>
+            {homeBar ? (
+              <button className="home-light-tag" onClick={() => nav("admin")} aria-label="进入后台">
+                <img src={HOME_ASSETS.star} alt="" />
+                <span>轻量版 · 更懂你</span>
+              </button>
+            ) : (
+              <>
+                <button className="btn ghost" onClick={() => nav("purchase")}>套餐购买</button>
+                <button className="btn ghost" onClick={() => nav("select")}>选择报告</button>
+                <button className="btn primary small" onClick={() => nav("admin")}><ShieldCheck size={16} />后台</button>
+              </>
+            )}
           </nav>
         </header>
       )}
@@ -376,50 +412,109 @@ function Shell({ state, nav, children }: { state: AppState; nav: (route: Route) 
 
 function HomePage({ products, state, nav, redeem, showToast }: { products: Product[]; state: AppState; nav: (r: Route) => void; redeem: (c: string) => void; showToast: (t: string) => void }) {
   const [code, setCode] = useState("");
+  const previewOrder: ReportTypeId[] = ["hair", "makeup", "outfit", "look", "comprehensive"];
+  const previewTypes = previewOrder.map((id) => REPORT_TYPES.find((type) => type.id === id)!).filter(Boolean);
+  const scrollToPackages = () => document.getElementById("packages")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrollToCoupon = () => {
+    document.getElementById("coupon")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => document.querySelector<HTMLInputElement>(".home-redeem-input")?.focus(), 350);
+  };
   return (
-    <main className="page home-page">
-      <section className="hero">
-        <div className="hero-copy">
-          <h1><span>AI</span>个人形象报告</h1>
-          <p className="script">for you</p>
-          <p>一张照片，生成你的专属形象报告。一次探索更适合你的风格。</p>
-          <div className="button-row">
-            <button className="btn primary hero-btn" onClick={() => nav("purchase")}><Gift />购买兑换码<small>低至 ¥1.9</small></button>
-            <button className="btn light hero-btn" onClick={() => document.getElementById("coupon")?.scrollIntoView({ block: "center" })}><ReceiptText />我已有兑换码<small>去兑换报告</small></button>
-          </div>
+    <main className="page home-page report-page">
+      <img className="home-bg-deco home-bg-star-1" src={HOME_ASSETS.sparkle} alt="" />
+      <img className="home-bg-deco home-bg-heart-1" src={HOME_ASSETS.heart} alt="" />
+
+      <section className="home-hero">
+        <img className="home-hero-bg" src={HOME_ASSETS.heroBg} alt="" />
+        <div className="home-hero-ring" />
+        <img className="home-hero-person" src={HOME_ASSETS.heroPerson} alt="AISea 形象报告人物示例" />
+        <div className="home-hero-copy">
+          <div className="home-ai">AI</div>
+          <h1>个人形象报告</h1>
+          <img className="home-script-img" src={HOME_ASSETS.forYou} alt="for you" />
+          <p><span>一张照片，生成你的专属形象报告</span></p>
         </div>
-        <div className="hero-media">
-          <img src={ASSETS.hero} alt="AISea 形象报告人物示例" />
-          <div className="hero-badge"><Sparkles size={16} />轻量版，更懂你</div>
+        <div className="home-hero-actions">
+          <button className="home-cta primary" onClick={scrollToPackages}>
+            <img src={HOME_ASSETS.shoppingBag} alt="" />
+            <span>购买兑换码<small>低至 ￥1.9</small></span>
+          </button>
+          <button className="home-cta secondary" onClick={scrollToCoupon}>
+            <img src={HOME_ASSETS.ticketOutline} alt="" />
+            <span>我已有兑换码<small>去兑换报告</small></span>
+          </button>
         </div>
       </section>
-      <Section title="热门报告预览" action={<button className="link-btn" onClick={() => nav("select")}>看看报告长什么样 <ChevronRight size={16} /></button>}>
-        <div className="preview-row">
-          {REPORT_TYPES.map((type) => <ReportPreview key={type.id} type={type} locked={type.id === "comprehensive" && state.rights.comprehensive <= 0} />)}
+
+      <section className="home-panel preview-panel">
+        <div className="home-section-head">
+          <h2>热门报告预览</h2>
+          <button onClick={() => nav("select")}>看看报告长什么样 <img src={HOME_ASSETS.arrowRight} alt="" /></button>
         </div>
-      </Section>
-      <Section title="选择你的报告套餐" caption="商品名称、价格、权益和闲鱼链接均可在后台配置。">
-        <div className="product-grid">{products.map((product) => <ProductCard key={product.id} product={product} nav={nav} showToast={showToast} />)}</div>
-      </Section>
-      <section className="section card coupon-card" id="coupon">
-        <div className="section-title-line"><Gift color="#ff3f7f" /><h2>兑换报告券</h2></div>
-        <div className="coupon-row">
-          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="请输入兑换码" maxLength={8} />
-          <button className="btn primary" onClick={() => redeem(code)}>立即兑换</button>
+        <div className="home-preview-list">
+          {previewTypes.map((type) => (
+            <HomeReportPreview
+              key={type.id}
+              type={type}
+              locked={type.id === "comprehensive" && state.rights.comprehensive <= 0}
+            />
+          ))}
         </div>
-        <p className="muted">体验码：AISEA19 / AISEA49 / AISEA99。正式兑换码由后台批量生成，8 位英文数字组成。</p>
       </section>
-      <section className="steps-band">
-        {[
-          ["购买兑换码", "选择套餐完成购买"],
-          ["输入兑换码", "在此兑换报告券"],
-          ["上传照片生成报告", "AI 分析并生成专属报告"],
-        ].map(([title, text], index) => <div className="step" key={title}><span>{index + 1}</span><b>{title}</b><p>{text}</p></div>)}
+
+      <section className="home-panel package-section" id="packages">
+        <div className="home-section-head">
+          <h2>选择你的报告套餐</h2>
+          <span>越多越划算</span>
+        </div>
+        <div className="home-package-list">
+          {products.map((product) => <HomePackageCard key={product.id} product={product} showToast={showToast} />)}
+        </div>
       </section>
-      <section className="share-strip">
-        <Heart className="heart" />
-        <div><b>报告支持一键准备分享至 小红书 / 微信 / 朋友圈</b><p>保存封面图和完整报告图，复制种草文案后自行发布。</p></div>
+
+      <section className="home-redeem-section" id="coupon">
+        <div className="home-redeem-title">
+          <img src={HOME_ASSETS.gift} alt="" />
+          <strong>兑换报告券</strong>
+        </div>
+        <input className="home-redeem-input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="请输入兑换码" maxLength={8} />
+        <button className="home-redeem-btn" onClick={() => redeem(code)}>立即兑换</button>
+        <button className="home-redeem-link" onClick={scrollToPackages}>去购买兑换码 <img src={HOME_ASSETS.arrowRight} alt="" /></button>
       </section>
+
+      <section className="home-panel step-section">
+        <h2>3 步轻松获取你的专属报告</h2>
+        <div className="home-step-list">
+          {[
+            [HOME_ASSETS.shoppingBag, "购买兑换码", "选择套餐完成购买"],
+            [HOME_ASSETS.ticketPink, "输入兑换码", "在此兑换报告券"],
+            [HOME_ASSETS.profileUpload, "上传照片生成报告", "AI 分析，生成专属报告"],
+          ].map(([icon, title, text], index) => (
+            <React.Fragment key={title}>
+              {index > 0 && <div className="home-step-arrow">→</div>}
+              <div className="home-step-item">
+                <div className="home-step-icon"><img src={icon} alt="" /></div>
+                <div className="home-step-num">{index + 1}</div>
+                <strong>{title}</strong>
+                <p>{text}</p>
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+      </section>
+
+      <footer className="home-share-footer">
+        <div className="home-share-heart"><img src={HOME_ASSETS.heart} alt="" /></div>
+        <div className="home-share-text">
+          <strong>报告支持一键分享至 小红书 / 微信 / 朋友圈</strong>
+          <p>记录变美过程，收获更多赞美与灵感</p>
+        </div>
+        <div className="home-share-icons">
+          <img src={HOME_ASSETS.xiaohongshu} alt="小红书" />
+          <img src={HOME_ASSETS.wechat} alt="微信" />
+          <img src={HOME_ASSETS.moments} alt="朋友圈" />
+        </div>
+      </footer>
     </main>
   );
 }
@@ -430,6 +525,53 @@ function Section({ title, caption, action, children }: { title: string; caption?
 
 function ReportPreview({ type, locked }: { type: ReportType; locked?: boolean }) {
   return <article className="preview-card"><div className="preview-img"><VisualSlot label={type.name} tone={type.id} />{locked && <span className="lock"><Lock size={20} /></span>}</div><h3>{type.name}</h3><p>{type.subtitle}</p><div className="chip-row">{type.tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}</div></article>;
+}
+
+function HomeReportPreview({ type, locked }: { type: ReportType; locked?: boolean }) {
+  const iconMap: Record<ReportTypeId, string> = {
+    comprehensive: HOME_ASSETS.reportCard,
+    hair: HOME_ASSETS.heroPersonAlt,
+    makeup: HOME_ASSETS.palette,
+    outfit: HOME_ASSETS.hanger,
+    look: HOME_ASSETS.heroPerson,
+  };
+  const captionMap: Record<ReportTypeId, string> = {
+    comprehensive: "形象定位 · 风格建议",
+    hair: "发型建议 · 发色推荐",
+    makeup: "色彩分析 · 妆容建议",
+    outfit: "风格定位 · 穿搭方案",
+    look: "场景穿搭 · 妆发建议",
+  };
+  return (
+    <article className={`home-preview-card ${type.id} ${locked ? "locked" : ""}`}>
+      <h3>{type.name}</h3>
+      <p>{type.subtitle}</p>
+      <div className="home-preview-img">
+        <img src={iconMap[type.id]} alt="" />
+        {locked && <span><img src={HOME_ASSETS.lock} alt="" /></span>}
+      </div>
+      <div className="home-preview-desc">{captionMap[type.id]}</div>
+    </article>
+  );
+}
+
+function HomePackageCard({ product, showToast }: { product: Product; showToast: (t: string) => void }) {
+  const full = product.id === "full";
+  const icon = full ? HOME_ASSETS.ticketOrange : product.id === "triple" ? HOME_ASSETS.ticketPink : HOME_ASSETS.ticketOutline;
+  const handleBuy = () => product.purchaseLink ? window.open(product.purchaseLink, "_blank", "noopener") : showToast("商品链接待配置，请先在后台填写闲鱼链接");
+  return (
+    <article className={`home-package-card ${product.id === "triple" ? "recommend" : ""} ${full ? "full" : ""}`}>
+      {product.badge && <div className={`home-package-badge ${full ? "orange" : ""}`}>{product.badge}</div>}
+      <h3>{product.name}</h3>
+      <div className={`home-package-price ${full ? "orange-text" : ""}`}>￥{product.price}{product.originalPrice && <del>￥{product.originalPrice}</del>}</div>
+      <div className={`home-ticket-icon ${full ? "orange-ticket" : ""}`}>
+        <img src={icon} alt="" />
+        {product.id === "triple" && <b>×3</b>}
+      </div>
+      <p>{product.description}</p>
+      <button onClick={handleBuy}>去购买</button>
+    </article>
+  );
 }
 
 function ProductCard({ product, nav, showToast }: { product: Product; nav: (r: Route) => void; showToast: (t: string) => void }) {

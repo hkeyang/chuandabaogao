@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="pinkGrad" x1="64" y1="30" x2="192" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF86B0"/>
+      <stop offset="1" stop-color="#FF2F7A"/>
+    </linearGradient>
+    <linearGradient id="pinkSoft" x1="64" y1="28" x2="196" y2="230" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF4F8"/>
+      <stop offset="1" stop-color="#FFD3E2"/>
+    </linearGradient>
+    <linearGradient id="orangeGrad" x1="54" y1="30" x2="202" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7C15D"/>
+      <stop offset="1" stop-color="#DB8D25"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#FF4D8D" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  
+  
+  <path d="M128 24C139 86 170 117 232 128C170 139 139 170 128 232C117 170 86 139 24 128C86 117 117 86 128 24Z" fill="url(#pinkGrad)" filter="url(#softShadow)"/>
+  <path d="M72 36C77 64 92 79 120 84C92 89 77 104 72 132C67 104 52 89 24 84C52 79 67 64 72 36Z" fill="#FF9BBC" opacity="0.9"/>
+  <path d="M204 44C208 65 219 76 240 80C219 84 208 95 204 116C200 95 189 84 168 80C189 76 200 65 204 44Z" fill="#FFD2E1" opacity="0.95"/>
+
+</svg>
