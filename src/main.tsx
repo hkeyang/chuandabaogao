@@ -476,24 +476,22 @@ function HomePage({ products, state, nav, redeem, showToast }: { products: Produ
         </div>
         <input className="home-redeem-input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="请输入兑换码" maxLength={8} />
         <button className="home-redeem-btn" onClick={() => redeem(code)}>立即兑换</button>
-        <button className="home-redeem-link" onClick={scrollToPackages}>去购买兑换码 <img src={HOME_ASSETS.arrowRight} alt="" /></button>
       </section>
 
       <section className="home-panel step-section">
         <h2>3 步轻松获取你的专属报告</h2>
         <div className="home-step-list">
           {[
-            [HOME_ASSETS.shoppingBag, "购买兑换码", "选择套餐完成购买"],
-            [HOME_ASSETS.ticketPink, "输入兑换码", "在此兑换报告券"],
-            [HOME_ASSETS.profileUpload, "上传照片生成报告", "AI 分析，生成专属报告"],
-          ].map(([icon, title, text], index) => (
+            [HOME_ASSETS.shoppingBag, "购买兑换码"],
+            [HOME_ASSETS.ticketPink, "输入兑换码"],
+            [HOME_ASSETS.profileUpload, "上传照片生成报告"],
+          ].map(([icon, title], index) => (
             <React.Fragment key={title}>
               {index > 0 && <div className="home-step-arrow">→</div>}
               <div className="home-step-item">
                 <div className="home-step-icon"><img src={icon} alt="" /></div>
                 <div className="home-step-num">{index + 1}</div>
                 <strong>{title}</strong>
-                <p>{text}</p>
               </div>
             </React.Fragment>
           ))}
@@ -555,6 +553,11 @@ function HomeReportPreview({ type, locked }: { type: ReportType; locked?: boolea
 function HomePackageCard({ product, showToast }: { product: Product; showToast: (t: string) => void }) {
   const full = product.id === "full";
   const icon = full ? HOME_ASSETS.ticketOrange : product.id === "triple" ? HOME_ASSETS.ticketPink : HOME_ASSETS.ticketOutline;
+  const homeDescription: Record<ProductId, string> = {
+    single: "专题报告 ×1",
+    triple: "专题报告 ×3",
+    full: "综合形象报告 ×1\n专题报告 ×3",
+  };
   const handleBuy = () => product.purchaseLink ? window.open(product.purchaseLink, "_blank", "noopener") : showToast("商品链接待配置，请先在后台填写闲鱼链接");
   return (
     <article className={`home-package-card ${product.id === "triple" ? "recommend" : ""} ${full ? "full" : ""}`}>
@@ -565,7 +568,7 @@ function HomePackageCard({ product, showToast }: { product: Product; showToast: 
         <img src={icon} alt="" />
         {product.id === "triple" && <b>×3</b>}
       </div>
-      <p>{product.description}</p>
+      <p>{homeDescription[product.id]}</p>
       <button onClick={handleBuy}>去购买</button>
     </article>
   );
