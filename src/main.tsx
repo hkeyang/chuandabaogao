@@ -36,6 +36,19 @@ import type { AdminState, AdminUser, AuditLog, Coupon, PersonaId, PreferenceStat
 type Route = "home" | "purchase" | "success" | "select" | "upload" | "preferences" | "confirm" | "progress" | "result" | "admin";
 type Toast = { id: number; text: string };
 
+function SafeAssetImage({ onError, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
+  return (
+    <img
+      {...props}
+      onError={(event) => {
+        event.currentTarget.dataset.assetError = "true";
+        event.currentTarget.setAttribute("aria-hidden", "true");
+        onError?.(event);
+      }}
+    />
+  );
+}
+
 const HOME_ASSETS = {
   logo: new URL("../assets/aisea_icon_01/01_logo_mark.png", import.meta.url).href,
   heroBg: new URL("../assets/aisea_icon_01/hero-background.png", import.meta.url).href,
@@ -1434,11 +1447,11 @@ function PreferencesPage({
   return (
     <main className="page preference-page">
       <div className="preference-page__bg" aria-hidden="true">
-        <img className="preference-bg-cloud preference-bg-cloud--left" src={PREFERENCE_ASSETS.cloud} alt="" />
-        <img className="preference-bg-cloud preference-bg-cloud--right" src={PREFERENCE_ASSETS.cloud} alt="" />
-        <img className="preference-bg-heart" src={PREFERENCE_ASSETS.heart} alt="" />
-        <img className="preference-bg-twinkle preference-bg-twinkle--pink" src={PREFERENCE_ASSETS.twinklePink} alt="" />
-        <img className="preference-bg-twinkle preference-bg-twinkle--white" src={PREFERENCE_ASSETS.twinkleWhite} alt="" />
+        <SafeAssetImage className="preference-bg-cloud preference-bg-cloud--left" src={PREFERENCE_ASSETS.cloud} alt="" />
+        <SafeAssetImage className="preference-bg-cloud preference-bg-cloud--right" src={PREFERENCE_ASSETS.cloud} alt="" />
+        <SafeAssetImage className="preference-bg-heart" src={PREFERENCE_ASSETS.heart} alt="" />
+        <SafeAssetImage className="preference-bg-twinkle preference-bg-twinkle--pink" src={PREFERENCE_ASSETS.twinklePink} alt="" />
+        <SafeAssetImage className="preference-bg-twinkle preference-bg-twinkle--white" src={PREFERENCE_ASSETS.twinkleWhite} alt="" />
       </div>
 
       <div className="preference-page__inner">
@@ -1477,8 +1490,8 @@ function PreferenceHeader({ onBack }: { onBack: () => void }) {
         <h1>生成偏好</h1>
       </div>
       <div className="preference-header__decor" aria-hidden="true">
-        <img className="decor-twinkle decor-twinkle--1" src={PREFERENCE_ASSETS.twinkleWhite} alt="" />
-        <img className="decor-twinkle decor-twinkle--2" src={PREFERENCE_ASSETS.twinklePink} alt="" />
+        <SafeAssetImage className="decor-twinkle decor-twinkle--1" src={PREFERENCE_ASSETS.twinkleWhite} alt="" />
+        <SafeAssetImage className="decor-twinkle decor-twinkle--2" src={PREFERENCE_ASSETS.twinklePink} alt="" />
       </div>
     </header>
   );
@@ -1495,10 +1508,10 @@ function PreferenceSectionCard({
 }) {
   return (
     <section className="preference-section">
-      <img className="section-corner-decor" src={section.icon} alt="" aria-hidden="true" />
+      <SafeAssetImage className="section-corner-decor" src={section.icon} alt="" aria-hidden="true" />
       <div className="section-header">
         <div className="section-title">
-          <img className="section-icon" src={section.icon} alt="" />
+          <SafeAssetImage className="section-icon" src={section.icon} alt="" />
           <span className="section-index">{section.index}</span>
           <h2>{section.title}</h2>
         </div>
@@ -1536,11 +1549,11 @@ function PreferenceOptionCard({
       onClick={onClick}
       style={{ "--option-accent": option.color, "--option-bg": option.bg } as React.CSSProperties}
     >
-      <img className="preference-option__tile" src={option.tile || option.icon} alt="" aria-hidden="true" />
-      <img className="preference-option__icon" src={option.icon} alt="" aria-hidden="true" />
+      <SafeAssetImage className="preference-option__tile" src={option.tile || option.icon} alt="" aria-hidden="true" />
+      <SafeAssetImage className="preference-option__icon" src={option.icon} alt="" aria-hidden="true" />
       <span className="preference-option__label">{option.label}</span>
       <span className="preference-option__check">
-        <img src={selected ? PREFERENCE_ASSETS.radioSelected : PREFERENCE_ASSETS.radioEmpty} alt="" aria-hidden="true" />
+        <SafeAssetImage src={selected ? PREFERENCE_ASSETS.radioSelected : PREFERENCE_ASSETS.radioEmpty} alt="" aria-hidden="true" />
       </span>
     </button>
   );
@@ -1563,7 +1576,7 @@ function ReuploadDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfi
   return (
     <div className="dialog-backdrop" onClick={onCancel}>
       <section className="dialog-card" onClick={(e) => e.stopPropagation()}>
-        <img src={PREFERENCE_ASSETS.heart} alt="" />
+        <SafeAssetImage src={PREFERENCE_ASSETS.heart} alt="" />
         <h3>重新上传会清空当前偏好，确认继续吗？</h3>
         <p>确认后将返回上传页，重新选择照片和偏好。</p>
         <div className="dialog-actions">

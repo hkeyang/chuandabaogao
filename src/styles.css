@@ -27,6 +27,7 @@ body {
 button, input, textarea, select { font: inherit; }
 button { border: 0; cursor: pointer; }
 img { max-width: 100%; display: block; }
+img[data-asset-error="true"] { visibility: hidden; }
 .reset { appearance: none; background: transparent; border: 0; color: inherit; }
 
 .app-shell { min-height: 100vh; }
@@ -5772,6 +5773,13 @@ body {
     linear-gradient(180deg, #fcecf2 0%, #fff8fa 34%, #fff 100%);
 }
 
+.app-shell:has(.preference-page) {
+  width: 100%;
+  max-width: min(360px, 100%);
+  margin: 0 auto;
+  overflow-x: hidden;
+}
+
 .page.preference-page .preference-page__bg {
   position: fixed;
   inset: 0;
@@ -5802,6 +5810,7 @@ body {
   position: relative;
   z-index: 1;
   width: min(975px, 100%);
+  max-width: 360px;
   margin: 0 auto;
   padding: calc(14px + env(safe-area-inset-top)) 18px 0;
 }
@@ -6106,7 +6115,8 @@ body {
 
 @media (max-width: 700px) {
   .page.preference-page .preference-page__inner {
-    padding: calc(14px + env(safe-area-inset-top)) 15px 0;
+    max-width: 360px;
+    padding: calc(14px + env(safe-area-inset-top)) 12px 0;
   }
   .page.preference-page .preference-header {
     min-height: 88px;
@@ -6160,10 +6170,7 @@ body {
     margin-bottom: 20px;
   }
   .page.preference-page .section-desc {
-    max-width: 142px;
-    text-align: right;
-    font-size: 13px;
-    line-height: 1.45;
+    display: none;
   }
   .page.preference-page .section-title h2 {
     font-size: 21px;
@@ -6179,8 +6186,14 @@ body {
   .page.preference-page .option-grid {
     gap: 8px;
   }
+  .page.preference-page .option-grid--style {
+    grid-template-columns: 1fr;
+  }
   .page.preference-page .option-grid--scene {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+  }
+  .page.preference-page .option-grid--range {
+    grid-template-columns: 1fr;
   }
   .page.preference-page .preference-option {
     min-height: 84px;
@@ -6189,7 +6202,7 @@ body {
     gap: 7px;
   }
   .page.preference-page .option-grid--style .preference-option {
-    min-height: 114px;
+    min-height: 84px;
   }
   .page.preference-page .option-grid--scene .preference-option {
     min-height: 72px;
@@ -6214,15 +6227,16 @@ body {
     margin-bottom: 16px;
   }
   .page.preference-page .option-grid--range .preference-option {
-    min-height: 112px;
+    min-height: 84px;
   }
   .page.preference-page .preference-option__icon {
-    width: 32px;
-    height: 32px;
+    width: 26px;
+    height: 26px;
   }
   .page.preference-page .preference-option__label {
     font-size: 14px;
     line-height: 1.25;
+    overflow-wrap: anywhere;
   }
   .page.preference-page .preference-option__check,
   .page.preference-page .preference-option__check img {
