@@ -1281,6 +1281,7 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
           <ExampleCard example={PHOTO_TIPS.goodExample} tone="good" />
           <ExampleCard example={PHOTO_TIPS.badExample} tone="bad" />
         </div>
+        <p className="tips-contrast-summary">正脸、光线清晰 vs 侧脸、遮挡/逆光</p>
         <div className="quick-tip-bar">
           {PHOTO_TIPS.quickTips.map((tip, index) => (
             <div className="quick-tip-item" key={tip.label}>

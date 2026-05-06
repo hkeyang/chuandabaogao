@@ -433,7 +433,7 @@ textarea { min-height: 180px; line-height: 1.65; resize: vertical; }
 }
 .example-card {
   min-width: 0;
-  padding: 10px;
+  padding: 10px 8px;
   border-radius: 16px;
   border: 1px solid #ffd0df;
   background: linear-gradient(180deg, #fff6fa 0%, #ffffff 100%);
@@ -454,14 +454,15 @@ textarea { min-height: 180px; line-height: 1.65; resize: vertical; }
 .example-card.good .example-title h3 { color: #ff2f78; }
 .example-body {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
   margin-top: 0;
 }
 .example-image {
-  width: 58px;
-  height: 58px;
-  flex: 0 0 58px;
+  width: 68px;
+  height: 68px;
+  flex: 0 0 68px;
   border-radius: 10px;
   object-fit: cover;
   background: #fff;
@@ -471,8 +472,8 @@ textarea { min-height: 180px; line-height: 1.65; resize: vertical; }
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 5px;
-  flex: 1;
+  gap: 4px;
+  width: 100%;
 }
 .example-body li {
   display: flex;
@@ -484,11 +485,21 @@ textarea { min-height: 180px; line-height: 1.65; resize: vertical; }
   white-space: nowrap;
 }
 .example-body li img { width: 13px; height: 13px; flex: 0 0 13px; margin-top: 0; }
+.tips-contrast-summary {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #fff7fa;
+  color: #7d4c5b;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
 .quick-tip-bar {
-  margin-top: 12px;
+  margin-top: 10px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding: 14px 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 6px 0;
   border-radius: 16px;
   background: #fff;
   border: 1px solid #ffe0e9;
@@ -496,11 +507,11 @@ textarea { min-height: 180px; line-height: 1.65; resize: vertical; }
 }
 .quick-tip-item {
   position: relative;
-  min-height: 58px;
+  min-height: 42px;
   min-width: 0;
-  padding: 0 4px;
+  padding: 0 10px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -509,17 +520,24 @@ textarea { min-height: 180px; line-height: 1.65; resize: vertical; }
   font-size: 10px;
   line-height: 14px;
 }
-.quick-tip-item:not(:last-child)::after {
+.quick-tip-item::after {
   content: "";
   position: absolute;
-  right: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 1px;
+  display: none;
   background: rgba(255, 217, 229, .72);
 }
+.quick-tip-item:nth-child(2n + 1)::after {
+  display: block;
+  right: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 1px;
+}
+.quick-tip-item:nth-child(-n + 2) {
+  border-bottom: 1px solid rgba(255, 217, 229, .72);
+}
 .quick-tip-item img { width: 24px; height: 24px; object-fit: contain; }
-.quick-tip-item span { max-width: 56px; }
+.quick-tip-item span { max-width: 70px; }
 .upload-zone-card {
   margin-top: 2px;
   padding: 12px;
@@ -876,15 +894,16 @@ textarea { min-height: 180px; line-height: 1.65; resize: vertical; }
   .photo-tips-card { padding: 16px 12px 12px; border-radius: 18px; }
   .tips-title { font-size: 18px; line-height: 24px; margin-bottom: 12px; }
   .example-grid { gap: 10px; margin-top: 0; }
-  .example-card { padding: 10px; }
-  .example-body { display: flex; gap: 8px; }
-  .example-image { width: 54px; height: 54px; flex-basis: 54px; }
+  .example-card { padding: 10px 8px; }
+  .example-body { gap: 8px; }
+  .example-image { width: 64px; height: 64px; flex-basis: 64px; }
   .example-title h3 { font-size: 13px; line-height: 18px; }
   .example-body li { font-size: 10px; }
-  .quick-tip-bar { margin-top: 12px; padding: 12px 0; }
-  .quick-tip-item { min-height: 52px; padding: 0 4px; font-size: 10px; line-height: 14px; }
+  .tips-contrast-summary { margin-top: 9px; font-size: 11px; }
+  .quick-tip-bar { margin-top: 9px; padding: 5px 0; }
+  .quick-tip-item { min-height: 40px; padding: 0 8px; font-size: 10px; line-height: 14px; }
   .quick-tip-item img { width: 22px; height: 22px; }
-  .quick-tip-item span { max-width: 56px; }
+  .quick-tip-item span { max-width: 68px; }
   .upload-zone-card { padding: 10px; }
   .upload-drop-zone { min-height: 250px; padding: 18px 12px; }
   .upload-icon { width: 40px; height: 40px; }
@@ -901,10 +920,13 @@ textarea { min-height: 180px; line-height: 1.65; resize: vertical; }
 }
 
 @media (max-width: 360px) {
-  .example-grid { grid-template-columns: 1fr; }
-  .quick-tip-bar { grid-template-columns: 1fr 1fr; }
-  .quick-tip-item:nth-child(2n)::after { display: none; }
-  .quick-tip-item:nth-child(2n + 1)::after { display: block; }
+  .example-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .example-card { padding: 9px 7px; }
+  .example-title { gap: 4px; }
+  .example-title img { width: 18px; height: 18px; flex-basis: 18px; }
+  .example-title h3 { font-size: 12px; line-height: 17px; }
+  .example-image { width: 58px; height: 58px; flex-basis: 58px; }
+  .tips-contrast-summary { padding-inline: 8px; font-size: 10px; }
   .upload-drop-zone { min-height: 232px; }
   .upload-title { font-size: 16px; }
   .primary-button { font-size: 17px; }
