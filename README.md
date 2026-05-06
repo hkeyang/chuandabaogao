@@ -1,1036 +1,906 @@
-## 当前可运行 H5
-
-本目录已经补齐一个静态 H5 产品实现：
-
-- 入口文件：`index.html`
-- 样式文件：`styles.css`
-- 交互逻辑：`app.js`
-- 完整本地启动：`node api/server.mjs`
-- npm 启动：`npm start`
-- 纯静态预览：`python3 -m http.server 4174`
-- 自动验收：`npm run verify`
-- 自动截图验收：`npm run verify:screenshots`
-- 完成审计：`npm run audit:completion`
-- 语法检查：`npm run check`
-- 访问地址：`http://localhost:4174/`
-
-演示兑换码：
-
-- `AISEA19`：单次专题报告券
-- `AISEA49`：三次探索卡
-- `AISEA99`：全案探索卡
-
-验收直达地址：
-
-- 首页：`http://localhost:4174/#/home`
-- 结果页演示：`http://localhost:4174/?demo=full#/result`
-- 分享弹窗演示：`http://localhost:4174/?demo=full&share=1#/result`
-- 截图输出目录：`screenshots/`
-
-已实现页面/状态：
-
-- P01 首页
-- P02 购买兑换码页
-- P03 兑换成功页
-- P04 选择报告类型页
-- P05 上传照片页
-- P06 生成偏好页
-- P07 确认生成页
-- P08 生成进度页
-- P09 查看结果页
-- 小红书分享准备弹窗
-- 生图指令弹窗
-
-接口能力：
-
-- `GET /api/health`：服务健康检查
-- `GET /api/readiness`：生产配置就绪检查
-- `GET /api/config`：产品套餐与购买链接配置
-- `POST /api/coupons/redeem`：兑换码校验与权益返回
-- `POST /api/reports/generate`：创建报告生成任务，返回报告结果与 Prompt
-- `GET /api/reports/{report_id}`：查询报告生成结果
-- `DELETE /api/reports/{report_id}`：删除报告结果和关联分享记录
-- `GET /api/reports/{report_id}/cover.svg`：下载小红书封面图
-- `GET /api/reports/{report_id}/report.svg`：下载完整报告图
-- `POST /api/reports/prepare-xhs-share`：返回小红书封面图、完整报告图和分享文案
-- `POST /api/reports/generate-prompt`：返回报告图/封面图生图 Prompt 与负向检查点
-
-生产环境配置：
-
-- `PORT`：服务端口，默认 `4174`
-- `HOST`：监听地址，默认 `127.0.0.1`
-- `PURCHASE_LINK_SINGLE`：单次专题报告券购买链接
-- `PURCHASE_LINK_TRIPLE`：三次探索卡购买链接
-- `PURCHASE_LINK_FULL`：全案探索卡购买链接
-- `AISEA_DATA_FILE`：本地 JSON 数据文件路径，默认 `data/aisea-store.json`
-- `SCREENSHOT_DIR`：自动截图验收输出目录，默认 `screenshots/`
-- `CHROME_BIN`：Chrome/Chromium 可执行文件路径，默认自动尝试 macOS Chrome
-- `AISEA_IMAGE_ENDPOINT`：外部生图服务 HTTP 地址。未配置时使用本地 SVG 兜底。
-- `AISEA_IMAGE_ENDPOINT_TOKEN`：外部生图服务 Bearer Token，可选。
-- `AISEA_IMAGE_ENDPOINT_TIMEOUT_MS`：外部生图服务超时时间，默认 `15000`。
-
-可以从 [.env.example](./.env.example) 复制生产配置模板。
-
-外部生图服务接口契约：
-
-请求方式：`POST ${AISEA_IMAGE_ENDPOINT}`
-
-请求体会包含：
-
-- `report_id`
-- `report_type`
-- `style_persona`
-- `style_preference`
-- `scene_preference`
-- `change_level`
-- `prompt`
-- `required_outputs.report_image = 1080x1920`
-- `required_outputs.xhs_cover_image = 1080x1440`
-- `required_outputs.xhs_summary_image = 1080x1440`
-
-响应体至少需要返回：
-
-```json
-{
-  "report_image_url": "https://cdn.example.com/report.png",
-  "xhs_cover_image_url": "https://cdn.example.com/cover.png",
-  "xhs_summary_image_url": "https://cdn.example.com/summary.png"
-}
-```
-
-Docker 部署：
+GlassFuture Market 官网技术开发文档 v1.0
+1. 项目定位
+GlassFuture Market 是一个面向全球用户的虚拟数字商品商城，主要销售 Discord Nitro、Spotify Premium、YouTube Premium、Steam Wallet、Microsoft 365 等数字商品。
+核心目标：
 
-```bash
-docker build -t aisea-h5 .
-docker run --rm -p 4174:4174 \
-  -e PURCHASE_LINK_SINGLE="https://your-link/single" \
-  -e PURCHASE_LINK_TRIPLE="https://your-link/triple" \
-  -e PURCHASE_LINK_FULL="https://your-link/full" \
-  aisea-h5
-```
 
-说明：当前实现已经是可启动的前后端一体 H5 产品壳，可完整演示兑换、权益扣减、上传预览、偏好选择、生成进度、报告结果、小红书分享准备和 Prompt 复制。兑换记录、报告结果和分享准备记录会写入本地 JSON 文件。正式上线前建议把 `api/server.mjs` 中的演示兑换码、静态图片 URL、Prompt 生成逻辑和本地 JSON 存储替换为真实数据库、对象存储和生图服务。
+支持几十个甚至上百个商品品类扩展。
 
-你的分享功能应该变成：
 
-分享到小红书 = 生成 2 张图 + 1 段文案
-小红书封面图
-用作笔记首图，负责吸引点击。
-完整报告长图
-用作第二张图，负责展示详细内容。
-自动生成分享文案
-复制到剪贴板，用户打开小红书后粘贴发布。
+支持商品后台灵活配置规格、分组、套餐和价格。
 
-目前比较稳的图片比例是 3:4 竖版。常见小红书图文配图比例包括 3:4、1:1、4:3，其中 3:4 竖图更适合首图展示；设计尺寸可以用 1080×1440px。同时要注意同一篇笔记的图片比例尽量统一，否则可能出现裁切或白边问题。
 
-一、整体功能目标
+支持 USDT 支付，并按后台配置显示 TRON、ETH、BSC、BASE 等支付网络。
 
-功能名称建议叫：
 
-一键准备小红书分享
+支持用户通过 Telegram 登录。
 
-不要叫“一键发布小红书”。
-因为你目前 H5 很难稳定、合规地直接替用户自动发布。更合理的是：
 
-系统帮用户准备好封面图、完整报告图和文案；用户自己打开小红书确认发布。
+支持根据用户 IP 自动显示法币参考价，也允许用户手动切换法币。
 
-用户体验流程：
 
-用户查看报告
-↓
-点击「分享到小红书」
-↓
-系统弹出分享准备页
-↓
-生成/展示小红书封面图
-↓
-保存封面图 + 保存完整报告图
-↓
-自动复制小红书文案
-↓
-引导用户打开小红书发布
-二、是否需要单独生成小红书封面图？
-需要，强烈建议单独生成。
+降低用户下单、支付、查单、收货过程中的不确定感。
 
-完整报告图像这样：
 
-信息多
-字小
-模块复杂
-适合认真看
-适合保存
+保持高级、轻盈、科技感的官网视觉风格。
 
-但小红书封面图需要：
 
-标题大
-情绪强
-人设明确
-留白足
-第一眼有点击欲
-适合在信息流里被看见
 
-所以你应该生成两种图：
+2. 页面范围
+本期建议开发以下核心页面：
+页面路由建议说明首页/商品浏览、快速下单、套餐联动、法币切换商品列表页/products全量商品分类、搜索、筛选商品详情页/product/:slug商品介绍、规格选择、购买说明、快速购买购买确认页/checkout联系方式、支付网络、订单确认支付页面/pay/:orderId钱包跳转、二维码、充值地址、链上等待支付成功 / 订单完成页/order/:orderId/success发货结果、交付信息、后续操作订单查询页/orders/lookup用户用订单号、邮箱、Telegram 查询订单用户中心/accountTelegram 登录后的订单、资料、通知设置后台管理/admin商品、规格、库存、价格、订单、支付网络配置
 
-图片类型    用途    建议尺寸    内容
-小红书封面图    笔记首图 / 吸引点击    1080×1440    人设名 + 用户照片 + 关键词 + 亮点
-完整报告图    第二张图 / 详细内容    1080×1920 或更长    发型、发色、妆容、穿搭、雷区等完整分析
+3. 整体前端信息架构
+3.1 首页结构
+首页采用「左侧浏览选择 + 右侧快速下单」布局。
+顶部导航
+内容包括：
 
-如果你现在完整报告图是 H5 内展示的长图，可以继续用；但封面图最好单独做一张。
 
-三、小红书封面图怎么设计？
-1. 封面图尺寸
+Logo：GlassFuture Market
 
-建议固定：
 
-1080 × 1440 px
-比例：3:4
-格式：JPG / PNG
+导航：
 
-为什么用 3:4：
 
-竖图在小红书信息流里视觉占比更高
-比 1:1 更适合放人物 + 标题
-比完整长图更容易被用户一眼看懂
+商品
 
-完整报告图如果太长，建议分享时不要作为首图。首图用 1080×1440，第二张可以是完整长图。
 
-但最好注意：同一篇笔记里图片比例统一更美观。如果完整报告特别长，建议额外生成一张 “报告摘要图”，也做成 1080×1440，作为第二张；完整长图则让用户保存，不一定放进小红书笔记。这个是更高级的版本。
+FAQ
 
-2. 封面图内容结构
 
-封面图不要塞太多信息。建议只放 6 个元素：
+订单查询
 
-顶部小标签
 
-例如：
 
-AI 个人形象报告
 
-或者：
+Telegram 登录入口
 
-我的变美人设测出来了
 
-主标题
+法币切换器
 
-这个是最重要的。
 
-示例：
+购物车
 
-轻法式白月光养成报告
-韩系温柔学姐变美报告
-清冷氧气感提升报告
-甜酷千金感形象报告
 
-标题一定要像小红书笔记标题，而不是像后台报告标题。
+右上角建议顺序：
+[Telegram 登录 / 用户头像] [CNY ▼] [购物车(0)]
+登录前显示：
+Telegram 登录
+登录后显示：
+头像 + @username
 
-用户照片
+3.2 首页左侧主区域
+首页左侧分为：
 
-建议用用户上传照片或生成后的风格照。
 
-放法：
+Hero 区
 
-右侧大人物图
-或中间半身人物图
-或人物 + 贴纸感卡片
 
-注意不要把人物缩得太小。封面图核心应该是“人设 + 人”。
+商品分类与搜索
 
-风格关键词
 
-3-5 个即可。
+商品卡片区域
 
-例如：
 
-清透 / 温柔 / 低饱和 / 松弛感
+动态购买选项区域
 
-或者：
 
-干净 / 上镜 / 亲和力 / 韩系感
+商品说明区域
 
-一句话结论
 
-例如：
+购买流程区域
 
-不需要大改，增加轻盈感和低饱和氛围就会更出片。
 
-或者：
-
-你的重点不是浓妆，而是清透底妆 + 柔和发型。
-
-引导语
-
-例如：
-
-AI 说我更适合这个路线，感觉有点准？
-
-或者：
-
-换发型前真的可以先看看。
-
-四、封面图模板建议
-
-你可以做 4 套封面模板，和报告风格对应。
-
-模板 1：轻法式白月光
-
-适合关键词：
-
-清透
-温柔
-低饱和
-松弛感
-奶油色
-
-封面文案：
-
-轻法式白月光
-养成报告
-
-清透 / 温柔 / 低饱和 / 松弛感
-
-AI 说我的变美方向：
-减少厚重感，增加轻盈和氛围
-
-视觉：
-
-奶油白背景
-柔光人物
-法式手写英文装饰
-花束 / 光斑 / 珍珠元素
-标题优雅
-模板 2：韩系温柔学姐
-
-适合关键词：
-
-干净
-温柔
-上镜
-亲和力
-清新自然
-
-封面文案：
-
-韩系温柔学姐
-变美报告
-
-干净 / 温柔 / 上镜 / 亲和力
-
-一眼心动的清新学姐感
-
-视觉：
-
-粉白渐变
-轻韩系排版
-贴纸感标签
-小爱心 / 星星 / 照片边框
-模板 3：清冷氧气感
-
-适合关键词：
-
-清冷
-通透
-轻盈
-克制高级
-
-封面文案：
-
-清冷氧气感
-提升报告
-
-清冷 / 通透 / 轻盈 / 克制高级
-
-不张扬，但很有呼吸感
-
-视觉：
-
-冷白、浅灰、淡粉
-留白多
-标题更高级
-人物更清透
-少装饰，多质感
-模板 4：甜酷千金感
-
-适合关键词：
-
-甜酷
-精致
-时髦
-存在感
-
-封面文案：
-
-甜酷千金感
-形象报告
-
-甜酷 / 精致 / 时髦 / 存在感
-
-甜而不腻，酷而有度
-
-视觉：
-
-粉 + 奶油 + 玫瑰金
-更强对比
-星星、皇冠、贴纸
-适合更醒目的封面
-五、完整报告图是否也要改尺寸？
-
-你现在完整报告图可以继续做长图，但建议输出两版。
-
-版本 A：H5 查看版
-宽度：1080 px
-高度：根据内容自适应，建议 2200–3600 px
-用途：H5 内查看、保存完整报告
-版本 B：小红书分享版
-尺寸：1080 × 1440 px
-比例：3:4
-用途：作为小红书第 2 张或第 3 张图
-内容：报告摘要，不是完整长图
-
-我建议你的第一版先做：
-
-封面图：1080×1440
-完整报告长图：保持原来长图
-
-第二版再加：
-
-报告摘要图：1080×1440
-六、分享功能的页面流程
-结果页新增按钮
-
-在结果页下载按钮旁边加一个：
-
-分享到小红书
-
-按钮文案可以更种草：
-
-一键准备小红书分享
-
-点击后进入弹窗或独立页面。
-
-分享弹窗结构
-
+Hero 区
 标题：
-
-分享你的变美报告
-
+未来已来，虚拟由你定义
 副标题：
+精选高品质数字商品，即刻拥有，安全便捷。
+功能标签：
+即时发货 / 秒级交付安全支付 / 加密保障7×24支持 / 全时在线
+背景风格：
 
-已为你准备好封面图、完整报告图和小红书文案。
 
-展示内容：
+玻璃星球
 
-封面图预览
-完整报告图缩略图
-分享文案预览
 
+透明晶体
+
+
+低饱和蓝紫渐变
+
+
+柔光粒子
+
+
+轻微空间感
+
+
+
+3.3 商品分类区域
+分类 Tab：
+全部 / 社交 / 音乐 / 视频 / 游戏 / 软件 / 礼品卡 / 更多
+右侧搜索框：
+搜索商品名称
+商品数量增多后，首页只展示热门商品。完整商品进入 /products 商品页展示。
+
+4. 商品与规格配置逻辑
+这是整个商城最关键的部分。
+你前面提到：
+
+有的商品有分组，有的没有分组；有的商品需要先选几个分组才到套餐；分组下面有的是多套餐，有的是没有套餐。
+
+这个应该全部通过后台配置实现，前端只根据配置动态渲染。
+
+4.1 商品配置模型
+建议商品结构如下：
+type Product = {  id: string;  slug: string;  name: string;  categoryId: string;  iconUrl: string;  coverUrl?: string;  shortDescription: string;  detailDescription: string;  deliveryType: 'auto' | 'manual' | 'mixed';  status: 'active' | 'hidden' | 'sold_out';  isHot: boolean;  isRecommended: boolean;  sortOrder: number;  baseCurrency: 'USDT';  supportedPaymentNetworks: PaymentNetwork[];  optionGroups: ProductOptionGroup[];  skus: ProductSku[];  notice: ProductNotice;};
+
+4.2 规格分组配置
+前端不要固定叫“套餐”，而是统一叫：
+规格 / 购买选项
+后台可以配置每一级的名称。
+type ProductOptionGroup = {  id: string;  productId: string;  name: string;   key: string;  required: boolean;  displayType: 'chips' | 'cards' | 'dropdown' | 'segmented';  sortOrder: number;  options: ProductOption[];};
+示例：
+[  {    "name": "地区",    "key": "region",    "displayType": "chips",    "options": ["Global", "US", "EU", "JP"]  },  {    "name": "账号类型",    "key": "account_type",    "displayType": "segmented",    "options": ["新号", "老号", "共享"]  },  {    "name": "套餐周期",    "key": "duration",    "displayType": "cards",    "options": ["1个月", "3个月", "12个月"]  }]
+
+4.3 SKU 配置
+每个最终可购买组合都是一个 SKU。
+type ProductSku = {  id: string;  productId: string;  optionValues: Record<string, string>;  priceUsdt: string;  originalPriceUsdt?: string;  stockType: 'unlimited' | 'limited';  stockQuantity?: number;  stockStatus: 'in_stock' | 'low_stock' | 'sold_out';  deliveryType: 'auto' | 'manual';  isDefault: boolean;  isRecommended: boolean;  discountLabel?: string;};
+示例：
+{  "productId": "discord-nitro",  "optionValues": {    "region": "Global",    "account_type": "新号",    "duration": "1个月"  },  "priceUsdt": "1.80",  "stockStatus": "in_stock",  "deliveryType": "auto",  "isDefault": true}
+
+4.4 前端渲染规则
+商品无规格
+直接显示：
+选中商品 → 显示价格 → 可下单
+商品有一级规格
+例如：
+套餐：Basic / Pro / Max
+前端显示一组套餐卡片。
+商品有多级规格
+例如：
+地区 → 账号类型 → 套餐周期
+前端按顺序显示，未选择上一级前，下一级置灰。
+SKU 不存在
+如果用户选择了一个后台不存在的组合，提示：
+当前规格组合暂不可购买，请重新选择
+SKU 售罄
+显示：
+暂时缺货
+按钮置灰。
+
+5. 首页快速下单逻辑
+右侧快速下单区需要和左侧实时同步。
+5.1 字段结构
+快速下单商品[Discord Nitro ▼]规格 / 套餐[Global · 新号 · 1个月 ▼]Telegram 用户名 *[例如 @username]邮箱 *[例如 name@example.com]支付币种[USDT 🔒]支付网络[TRON (TRC20) ▼]订单金额1.80 USDT≈ ¥13.0[立即支付]
+
+5.2 左右联动规则
+用户在左侧点击商品后：
+
+
+右侧商品同步更新
+
+
+规格区域同步为该商品默认 SKU
+
+
+价格同步更新
+
+
+商品说明同步更新
+
+
+用户在左侧切换规格后：
+
+
+右侧规格组合同步更新
+
+
+订单金额同步更新
+
+
+支付网络按商品配置刷新
+
+
+用户在右侧切换商品后：
+
+
+左侧商品卡片选中态同步
+
+
+左侧规格区域切换为该商品配置
+
+
+页面不跳转，保持快速下单体验
+
+
+
+6. Telegram 登录设计
+用户可以通过 Telegram 登录，登录后可查看订单、接收通知、减少填写成本。
+Telegram 官方 Login Widget 支持网站授权，接入时需要创建 Telegram Bot，并将网站域名通过 BotFather 的 /setdomain 绑定到该 Bot；授权成功后，Telegram 会返回用户 id、first_name、last_name、username、photo_url、auth_date、hash 等字段，服务端需要校验 hash 和 auth_date。
+
+6.1 登录入口
+顶部右上角：
+登录前：
+[Telegram 登录]
+登录后：
+[@username ▼]
+下拉菜单：
+我的订单通知设置退出登录
+
+6.2 Telegram 登录流程
+用户点击 Telegram 登录↓弹出 Telegram 授权窗口↓用户确认授权↓前端收到 Telegram auth data↓发送给后端 /auth/telegram↓后端校验 hash↓校验成功后创建或更新用户↓返回 JWT / Session↓前端保存登录状态
+
+6.3 后端校验逻辑
+服务端必须做：
+
+
+按 Telegram 要求拼接 data-check-string。
+
+
+使用 Bot Token 生成 secret key。
+
+
+使用 HMAC-SHA256 验证 hash。
+
+
+检查 auth_date 是否过期。
+
+
+防止伪造登录数据。
+
+
+伪代码：
+function verifyTelegramLogin(data: TelegramAuthData, botToken: string) {  const { hash, ...rest } = data;  const dataCheckString = Object.keys(rest)    .sort()    .map((key) => `${key}=${rest[key]}`)    .join('\n');  const secretKey = sha256(botToken);  const computedHash = hmacSha256(dataCheckString, secretKey);  return computedHash === hash;}
+
+6.4 用户表设计
+type User = {  id: string;  telegramId?: string;  telegramUsername?: string;  telegramFirstName?: string;  telegramLastName?: string;  telegramPhotoUrl?: string;  email?: string;  defaultCurrency: FiatCurrency;  lastLoginAt: Date;  createdAt: Date;};
+
+6.5 登录后的下单优化
+如果用户已 Telegram 登录：
+快速下单区的 Telegram 用户名默认填充：
+@username
+但仍允许用户修改，因为有些用户可能希望发货到另一个 Telegram 账号。
+建议文案：
+默认使用当前登录 Telegram，可修改为其他接收账号。
+邮箱仍建议必填。
+
+7. 法币参考价系统
+7.1 需求
+页面右上角提供法币切换器，支持：
+USD 美元CNY 人民币GBP 英镑EUR 欧元AUD 澳元JPY 日元HKD 港币KRW 韩元
+根据用户 IP 自动判断地区，默认显示对应法币参考价。
+例如中国用户：
+1.80 USDT≈ ¥13.0
+美国用户：
+1.80 USDT≈ $1.80
+欧洲用户：
+1.80 USDT≈ €1.68
+
+7.2 显示原则
+USDT 是主价格，法币是参考价。
+UI 必须明确主次：
+1.80 USDT≈ ¥13.0
+不能让用户误以为可以用法币结算。
+建议在币种切换器附近加提示：
+根据 IP 自动显示参考价，最终支付以 USDT 为准。
+
+7.3 汇率逻辑
+后台定时拉取汇率，前端只展示后端返回的参考价。
+type ExchangeRate = {  base: 'USDT';  target: 'CNY' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'JPY' | 'HKD' | 'KRW';  rate: string;  updatedAt: Date;};
+
+7.4 法币切换前端状态
+优先级：
+用户手动选择 > 登录用户偏好 > IP 自动识别 > 默认 USD
+本地存储：
+localStorage.setItem('preferredCurrency', 'CNY');
+登录用户同步到后端：
+PATCH /api/me/preferences{  "defaultCurrency": "CNY"}
+
+7.5 价格组件
+统一封装价格组件：
+<Price  amountUsdt="1.80"  fiatCurrency="CNY"  fiatAmount="13.0"/>
+渲染：
+1.80 USDT≈ ¥13.0
+
+8. 商品详情页设计
+8.1 页面结构
+商品详情页 /product/:slug 分为：
+
+
+顶部导航
+
+
+面包屑
+
+
+商品主视觉
+
+
+商品标题与价格
+
+
+规格选择
+
+
+右侧订单摘要
+
+
+商品说明与售后规则
+
+
+相关推荐
+
+
+
+8.2 商品详情主区域
+左侧：
+
+
+商品大图
+
+
+缩略图
+
+
+商品图标
+
+
+中间：
+Discord Nitro解锁 Discord 高级聊天体验，享受自定义表情、高清直播、超大文件上传等专属权益。自动发货 / 库存充足 / 支持售后咨询1.80 USDT≈ ¥13.0
+规格区：
+地区：Global / US / EU / JP账号类型：新号 / 老号 / 共享套餐周期：1个月 / 3个月 / 12个月
+
+8.3 商品说明区
+核心规则必须直接平铺展示：
+发货方式：自动发货保质期：30天售后规则：开通后不支持退款
+详细说明以 Tab 或折叠面板展示：
+商品介绍使用说明保质期详情售后规则常见问题
+
+9. 购买确认页设计
+购买页 /checkout 用来减少误填和错付。
+9.1 页面结构
+顶部步骤条：
+1 选择商品 → 2 选择规格 → 3 填写信息 → 4 确认支付
+左侧：
+
+
+订单商品预览
+
+
+联系信息
+
+
+支付信息
+
+
+支付前确认
+
+
+右侧：
+
+
+订单摘要
+
+
+阅读确认
+
+
+确认并支付按钮
+
+
+
+9.2 联系信息
+Telegram 用户名 *例如 @username邮箱 *例如 name@example.com
+若用户已 Telegram 登录：
+Telegram 用户名默认填充登录账号
+但仍允许修改。
+
+9.3 支付前确认
+在页面中增加轻量确认区，避免弹窗过多。
+显示：
+商品：Discord Nitro规格：Global / 新号 / 1个月Telegram：@username邮箱：name@example.com支付网络：TRON (TRC20)应付金额：1.80 USDT ≈ ¥13.0
+提示：
+虚拟商品开通后通常不支持退款，请确认信息无误后再进行支付。
+
+9.4 阅读确认
+用户点击支付前必须勾选：
+我已阅读并同意购买须知与售后规则
 按钮：
+确认并支付
 
-保存封面图
-保存完整报告图
-复制文案
-打开小红书
+10. 支付页面设计
+支付页 /pay/:orderId 用来处理钱包跳转、扫码支付、链上等待。
+10.1 状态步骤
+订单已创建 → 等待付款 → 链上确认 → 正在发货 → 已完成
+当前状态高亮。
 
-底部提示：
+10.2 支付信息
+显示：
+订单号：GF20240527000123商品：Discord Nitro规格：Global / 新号 / 1个月支付金额：1.80 USDT ≈ ¥13.0支付网络：TRON (TRC20)剩余支付时间：14:32
 
-建议把封面图放第 1 张，完整报告图放第 2 张，更容易被点击。
+10.3 钱包打开方式
+浏览器钱包移动钱包WalletConnectTronLink
+按钮：
+重新打开钱包
 
-七、前端交互流程
-点击“分享到小红书”后
-1. 检查是否已有 share_cover_image_url
-2. 如果没有，调用接口生成封面图
-3. 返回封面图 URL、报告图 URL、分享文案
-4. 展示分享弹窗
-5. 自动复制文案到剪贴板
-6. 引导用户保存图片
-7. 用户点击打开小红书
-推荐交互顺序
+10.4 充值地址区域
+右侧显示：
+请使用 TRON (TRC20) 向以下地址转账二维码收款地址复制地址支付金额复制金额支付网络复制网络
+注意事项：
+请确保金额与网络正确，否则可能导致资产丢失且无法找回。
 
-不要一点击就直接打开小红书。
-应该先让用户完成准备动作：
+10.5 用户支付后反馈
+按钮：
+我已完成支付
+点击后：
 
-Step 1 保存封面图
-Step 2 保存完整报告图
-Step 3 复制文案
-Step 4 打开小红书
 
-因为 H5 无法保证图片已经进相册，也无法保证文案一定复制成功。
+前端进入轮询状态
 
-八、H5 技术实现建议
-1. 保存图片
 
-移动端 H5 里，直接“下载到相册”兼容性不稳定。建议提供两种方式：
+后端查询链上交易
 
-方式 1：长按保存
 
-展示图片，并提示：
+状态变为「链上确认中」
 
-长按图片保存到相册
-
-方式 2：下载按钮
-
-如果浏览器支持下载：
-
-点击下载图片
-
-但很多移动浏览器对 download 属性支持不一致，所以“长按保存”必须保留。
-
-2. 复制文案
-
-使用 Clipboard API：
-
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch (e) {
-    return false
-  }
-}
-
-如果失败，显示文案框，让用户手动复制。
 
 提示：
+支付后通常需要 1–3 分钟链上确认，请勿重复支付。
 
-文案已复制，打开小红书后可直接粘贴。
+11. 订单完成页设计
+订单完成页 /order/:orderId/success 用来展示结果、交付内容和后续操作。
+11.1 顶部成功区
+订单已完成，感谢您的购买！支付成功，商品已发送至您的 Telegram 与邮箱。
+状态标签：
+Telegram 通知已发送邮件通知已发送安全可靠的自动发货系统
 
-失败提示：
+11.2 进度条
+订单已创建已收到付款链上确认完成正在发货已完成
+每一步显示时间。
 
-当前浏览器不支持自动复制，请长按文案手动复制。
+11.3 订单信息
+订单号商品规格订单金额支付网络支付时间发货方式
 
-3. 打开小红书
+11.4 发货结果
+显示：
+发货状态：已发送至 Telegram 与邮箱Telegram：已发送至 @username邮箱：已发送至 name@example.com
+交付内容建议默认隐藏：
+交付内容预览（部分信息已隐藏）激活链接：********激活码：********有效期：1个月
+按钮：
+查看完整交付内容
 
-可以尝试使用 scheme / universal link，但不同系统和浏览器兼容不同。
+12. 订单查询页
+12.1 查询方式
+支持：
 
-建议做成：
 
-打开小红书
+订单号 + 邮箱
 
-按钮点击后：
 
-优先尝试打开小红书 App
-失败则提示用户手动打开小红书
+订单号 + Telegram 用户名
 
-如果你没有可靠的小红书官方分享接口，第一版不要承诺“图片和文案已自动带入小红书发布页”。
 
-更稳的文案是：
+登录后查看全部订单
 
-打开小红书后，选择刚保存的图片并粘贴文案发布。
 
-九、后端接口规划
-1. 获取分享素材接口
-GET /api/reports/{report_id}/share-assets
+表单：
+订单号邮箱 / Telegram 用户名[查询订单]
 
-返回：
+12.2 订单状态
+type OrderStatus =  | 'created'  | 'pending_payment'  | 'payment_confirming'  | 'paid'  | 'delivering'  | 'completed'  | 'expired'  | 'failed'  | 'refunding'  | 'refunded';
+中文显示：
+待付款链上确认中已付款发货中已完成已超时支付失败退款中已退款
 
-{
-  "report_id": "rpt_123",
-  "report_type": "comprehensive",
-  "style_persona": "轻法式白月光",
-  "cover_image_url": "https://xxx/cover.jpg",
-  "report_image_url": "https://xxx/report-long.jpg",
-  "summary_image_url": "https://xxx/summary.jpg",
-  "share_title": "AI说我是轻法式白月光路线，感觉有点准？",
-  "share_text": "AI给我生成了一份专属形象报告...",
-  "hashtags": ["AI形象报告", "变美思路", "发型推荐"],
-  "copy_text": "完整复制文案..."
-}
-2. 生成封面图接口
-POST /api/reports/{report_id}/generate-share-cover
+13. 支付网络配置
+13.1 支持网络
+后台可配置：
+TRON / TRC20ETH / ERC20BSC / BEP20BASE / ERC20PolygonSolana
+当前 UI 先显示：
+TRONETHBSCBASE
+超过 4 个网络后，前端自动改为下拉列表。
 
+13.2 网络配置表
+type PaymentNetwork = {  id: string;  code: 'TRON' | 'ETH' | 'BSC' | 'BASE' | string;  displayName: string;  tokenStandard: string;  isEnabled: boolean;  isRecommended: boolean;  sortOrder: number;  minAmountUsdt?: string;  maxAmountUsdt?: string;  warningText?: string;};
+示例：
+{  "code": "TRON",  "displayName": "TRON",  "tokenStandard": "TRC20",  "isRecommended": true,  "warningText": "请勿使用其他链转账，跨链支付可能导致资产无法找回。"}
+
+14. 订单数据模型
+type Order = {  id: string;  orderNo: string;  userId?: string;  productId: string;  skuId: string;  productSnapshot: ProductSnapshot;  skuSnapshot: SkuSnapshot;  telegramUsername: string;  email: string;  amountUsdt: string;  fiatCurrency: FiatCurrency;  fiatAmountSnapshot: string;  exchangeRateSnapshot: string;  paymentCurrency: 'USDT';  paymentNetwork: string;  paymentAddress: string;  status: OrderStatus;  expiresAt: Date;  paidAt?: Date;  deliveredAt?: Date;  createdAt: Date;  updatedAt: Date;};
+
+15. 后台管理功能
+后台需要支持：
+15.1 商品管理
+
+
+新增商品
+
+
+编辑商品
+
+
+上下架
+
+
+分类配置
+
+
+商品图标
+
+
+商品简介
+
+
+商品详情
+
+
+是否热门
+
+
+是否推荐
+
+
+排序
+
+
+
+15.2 规格管理
+
+
+新增规格组
+
+
+配置规格组名称
+
+
+配置规格展示方式
+
+
+配置规格选项
+
+
+拖拽排序
+
+
+配置 SKU 组合
+
+
+配置 SKU 价格
+
+
+配置库存状态
+
+
+
+15.3 商品说明配置
+后台结构：
+type ProductNotice = {  deliverySummary: string;  warrantySummary: string;  refundSummary: string;  usageGuide: string;  warrantyDetail: string;  refundRule: string;  attention: string;  faq: ProductFaqItem[];};
+前端显示：
+核心摘要：
+发货方式保质期售后规则
+详细内容：
+使用说明保质期详情注意事项FAQ
+
+15.4 支付配置
+
+
+支付币种：固定 USDT
+
+
+支付网络配置
+
+
+收款地址配置
+
+
+网络开启 / 关闭
+
+
+是否推荐
+
+
+风险提示文案
+
+
+最小 / 最大支付金额
+
+
+支付超时时间
+
+
+
+15.5 订单管理
+
+
+订单列表
+
+
+状态筛选
+
+
+用户信息
+
+
+支付网络
+
+
+支付金额
+
+
+链上交易 Hash
+
+
+手动标记已支付
+
+
+手动补发
+
+
+退款标记
+
+
+客服备注
+
+
+
+16. API 设计
+16.1 商品接口
+GET /api/products
+返回商品列表。
+GET /api/products/:slug
+返回商品详情、规格组、SKU、说明内容。
+
+16.2 下单接口
+POST /api/orders
 请求：
-
-{
-  "template_id": "cover_soft_french",
-  "platform": "xiaohongshu",
-  "size": "1080x1440"
-}
-
+{  "productId": "discord-nitro",  "skuId": "sku_001",  "telegramUsername": "@username",  "email": "name@example.com",  "paymentNetwork": "TRON",  "fiatCurrency": "CNY"}
 返回：
+{  "orderId": "order_001",  "orderNo": "GF20240527000123",  "paymentUrl": "/pay/order_001"}
 
-{
-  "cover_image_url": "https://xxx/cover.jpg",
-  "status": "success"
-}
-3. 生成分享文案接口
-POST /api/reports/{report_id}/generate-share-copy
-
+16.3 支付信息接口
+GET /api/orders/:orderId/payment
 返回：
+{  "orderNo": "GF20240527000123",  "amountUsdt": "1.80",  "fiatCurrency": "CNY",  "fiatAmount": "13.0",  "paymentNetwork": "TRON",  "paymentAddress": "TX...",  "expiresAt": "2026-05-05T12:00:00Z",  "status": "pending_payment"}
 
-{
-  "share_title": "AI说我是轻法式白月光路线，感觉有点准？",
-  "share_text": "AI给我生成了一份专属形象报告...",
-  "hashtags": ["AI形象报告", "变美思路", "个人风格定位"],
-  "copy_text": "AI说我是轻法式白月光路线..."
-}
+16.4 订单状态接口
+GET /api/orders/:orderId/status
+前端支付页轮询该接口。
+建议轮询频率：
+前 3 分钟：每 5 秒一次3 分钟后：每 15 秒一次订单超时后停止轮询
 
-实际上你可以把 2 和 3 合并：
+16.5 Telegram 登录接口
+POST /api/auth/telegram
+请求：
+{  "id": "123456",  "first_name": "John",  "username": "username",  "photo_url": "https://...",  "auth_date": "1710000000",  "hash": "..."}
+返回：
+{  "token": "jwt_token",  "user": {    "id": "user_001",    "telegramUsername": "username",    "defaultCurrency": "CNY"  }}
 
-POST /api/reports/{report_id}/prepare-xhs-share
+16.6 法币接口
+GET /api/exchange-rates?base=USDT
+PATCH /api/me/preferences
+请求：
+{  "defaultCurrency": "CNY"}
 
-一次返回封面图、报告图和文案。
-
-十、数据库字段规划
-
-报告表里新增：
-
-report_id
-user_photo_url
-report_type
-style_persona
-style_keywords
-report_image_url
-xhs_cover_image_url
-xhs_summary_image_url
-xhs_share_title
-xhs_share_text
-xhs_share_tags
-xhs_share_prepared_at
-
-分享记录表：
-
-share_id
-report_id
-platform: xhs
-action: prepare / copy_text / save_cover / save_report / open_app
-created_at
-device_info
-
-这样你能统计：
-
-有多少人点分享
-有多少人保存封面图
-有多少人复制文案
-有多少人点击打开小红书
-
-这对判断“出圈率”很重要。
-
-十一、小红书分享文案模板
-
-你的文案要分类型。不要所有人一套。
-
-下面直接给你可用模板。
-
-1. 综合报告：轻法式白月光
-标题
-AI说我是「轻法式白月光」路线，感觉有点准？
-正文
-刚生成了一份 AI 个人形象报告，没想到它给我的风格人设是「轻法式白月光」。
-
-关键词：清透 / 温柔 / 低饱和 / 松弛感
-
-它给我的变美方向是：
-1. 发型增加轻层次，不要太厚重
-2. 发色更适合奶茶棕、冷茶棕、浅栗色
-3. 妆容重点放在清透底妆和温柔唇色
-4. 穿搭多选奶油白、燕麦色、浅咖色
-
-感觉不是那种大改造，而是把整体氛围变轻、变柔、变干净。
-
-准备照着试试，先从发型和穿搭开始 ✨
-话题
-#AI形象报告 #变美思路 #个人风格定位 #发型推荐 #个人色彩分析 #普通女生变美
-2. 综合报告：韩系温柔学姐
-标题
-测出来我是「韩系温柔学姐」风，真的有点心动
-正文
-试了一下 AI 个人形象报告，它给我的风格人设是「韩系温柔学姐」。
-
-关键词：干净 / 温柔 / 上镜 / 亲和力
-
-报告里给我的建议是：
-1. 发型适合空气刘海、层次中长发、慵懒大波浪
-2. 发色适合黑茶色、奶茶棕、冷棕色
-3. 妆容适合清透底妆、自然眉、豆沙色唇妆
-4. 穿搭可以走校园清新感、日常韩系感、拍照氛围感
-
-感觉这个路线不夸张，但是很适合日常变好看。
-
-换发型前真的可以先测一下，少走弯路。
-话题
-#韩系穿搭 #发型推荐 #AI形象报告 #变美思路 #小红书变美 #普通女生变美
-3. 综合报告：清冷氧气感
-标题
-AI说我适合「清冷氧气感」，这个方向我真的想试
-正文
-我的 AI 形象报告出来了，风格人设是「清冷氧气感」。
-
-关键词：清冷 / 通透 / 轻盈 / 克制高级
-
-报告里说我更适合：
-1. 轻盈层次的发型，不要太厚重
-2. 自然黑茶、冷棕、雾感摩卡这类低调发色
-3. 清透底妆 + 低饱和唇色
-4. 简约、低饱和、有质感的穿搭
-
-它还提醒我不要大面积高饱和色，也不要堆太多复杂配饰。
-
-感觉这个方向很适合想变高级但不想太用力的女生。
-话题
-#清冷感穿搭 #个人风格定位 #AI形象报告 #变美思路 #发色推荐 #低饱和穿搭
-4. 综合报告：甜酷千金感
-标题
-救命，AI说我是「甜酷千金感」路线
-正文
-今天生成了一份 AI 个人形象报告，结果它给我的风格人设是「甜酷千金感」。
-
-关键词：甜酷 / 精致 / 时髦 / 存在感
-
-报告给我的方向是：
-1. 发型可以尝试高颅顶马尾、慵懒大波浪、仙气半扎发
-2. 发色适合玫瑰茶棕、巧克力棕、自然黑
-3. 妆容可以加强细节高光和氛围感唇色
-4. 穿搭更适合甜酷出街感、轻奢约会感、拍照吸睛感
-
-感觉不是单纯甜妹，也不是完全酷姐，是甜而不腻、酷而有度的感觉。
-
-这个人设我先认领了 👑
-话题
-#甜酷穿搭 #千金感穿搭 #AI形象报告 #变美报告 #发型推荐 #普通女生变美
-十二、专题报告分享文案模板
-1. 发型发色专题
-标题
-换发型前先看 AI 发型报告，真的能避雷
-正文
-我生成了一份 AI 发型发色专题报告，感觉很适合换发型前参考。
-
-它给我的发型方向：
-1. 更适合轻层次、空气感、自然卷度
-2. 发色适合黑茶色、冷茶棕、奶茶棕
-3. 尽量避开厚重齐刘海、贴头皮直发、过浅发色
-
-最有用的是它不只推荐好看的，还会告诉我哪些方向要谨慎尝试。
-
-准备拿这个去和理发师沟通一下。
-话题
-#发型推荐 #换发型前必看 #发色推荐 #AI发型 #变美思路
-2. 色彩妆容专题
-标题
-测了我的专属色彩妆容，终于知道怎么买口红了
-正文
-用 AI 生成了一份色彩妆容专题报告，终于知道自己适合什么颜色了。
-
-我的关键词：
-清透 / 柔和 / 低饱和 / 提气色
-
-报告推荐我：
-1. 服装多选柔和浅色和低饱和色
-2. 口红适合豆沙、奶茶、玫瑰棕这类色系
-3. 腮红不要太重，淡淡提气色就好
-4. 避免大面积高饱和色和强对比色
-
-感觉以后买衣服和口红可以少踩雷了。
-话题
-#个人色彩分析 #口红推荐 #妆容分享 #AI形象报告 #变美思路
-3. 穿搭配饰专题
-标题
-AI 给我做了穿搭配饰报告，可以直接照着穿
-正文
-这次生成的是穿搭配饰专题报告，感觉比单纯看穿搭图更实用。
+17. 前端技术建议
+17.1 技术栈
+建议：
+Next.jsReactTypeScriptTailwind CSSZustand / Redux ToolkitReact Query / TanStack QueryFramer Motion
 
-它给我的方向：
-1. 适合低饱和、简洁、有质感的穿搭
-2. 配饰适合小巧精致，不要太复杂
-3. 包包和鞋子尽量选择百搭色
-4. 整体风格保持统一，会更显气质
+17.2 关键组件
+HeaderCurrencySwitcherTelegramLoginButtonProductCardProductOptionSelectorSkuSelectorPriceDisplayQuickOrderPanelOrderSummaryCheckoutStepperPaymentNetworkSelectorPaymentQrCardOrderStatusTrackerProductNoticePanel
 
-最喜欢的是它直接给了几套可以照抄的 Look，适合日常、通勤和拍照。
-话题
-#穿搭灵感 #个人风格定位 #配饰分享 #AI形象报告 #小红书穿搭
-4. 场景 Look 专题
-标题
-AI 帮我生成了不同场景 Look，太适合懒人了
-正文
-生成了一份场景 Look 专题报告，里面把日常、通勤、拍照、聚会都配好了。
+17.3 状态管理
+前端核心状态：
+type PurchaseState = {  selectedProductId?: string;  selectedOptions: Record<string, string>;  selectedSkuId?: string;  telegramUsername?: string;  email?: string;  paymentCurrency: 'USDT';  paymentNetwork?: string;  fiatCurrency: FiatCurrency;};
 
-它不是只推荐衣服，还会一起给：
-1. 发型方向
-2. 妆容方向
-3. 穿搭色系
-4. 配饰建议
+18. 设计样式规范
+18.1 视觉关键词
+未来感轻玻璃蓝紫渐变柔光安全感高级感简洁可信任
 
-感觉很适合不知道怎么搭配的人，直接按场景抄作业就行。
+18.2 颜色建议
+主色：
+--primary: #6C63FF;--primary-light: #8B7CFF;--primary-dark: #4D46D9;
+辅助色：
+--blue: #5B8CFF;--cyan: #66D9E8;--green: #20C997;--warning: #FFB020;--danger: #FF5A5F;
+背景：
+--bg-page: #F6F8FF;--bg-card: rgba(255, 255, 255, 0.78);--bg-glass: rgba(255, 255, 255, 0.62);
+文字：
+--text-main: #111A44;--text-secondary: #667199;--text-muted: #9AA3C7;
+边框：
+--border-light: rgba(120, 130, 255, 0.18);--border-active: #6C63FF;
 
-下次出门前我可能真的会先看这个。
-话题
-#场景穿搭 #约会穿搭 #通勤穿搭 #AI形象报告 #变美思路
-十三、文案生成规则
+18.3 字体
+建议：
+font-family:  Inter,  "SF Pro Display",  "PingFang SC",  "Microsoft YaHei",  sans-serif;
 
-你的系统可以按这个逻辑生成文案：
+18.4 圆角
+--radius-sm: 8px;--radius-md: 12px;--radius-lg: 18px;--radius-xl: 24px;--radius-card: 28px;
 
-报告类型 + 风格人设 + 关键词 + 推荐方向 + 雷区 + 话题标签
-综合报告文案结构
-标题：
-AI说我是「{style_persona}」路线，感觉有点准？
+18.5 阴影
+--shadow-card: 0 16px 40px rgba(80, 90, 180, 0.10);--shadow-float: 0 24px 70px rgba(80, 90, 180, 0.16);--shadow-button: 0 12px 28px rgba(108, 99, 255, 0.32);
 
-正文：
-刚生成了一份 AI 个人形象报告，没想到它给我的风格人设是「{style_persona}」。
+18.6 玻璃卡片样式
+.glass-card {  background: rgba(255, 255, 255, 0.72);  backdrop-filter: blur(18px);  border: 1px solid rgba(130, 140, 255, 0.18);  box-shadow: 0 16px 40px rgba(80, 90, 180, 0.10);  border-radius: 24px;}
 
-关键词：{keywords}
+18.7 主按钮
+.primary-button {  background: linear-gradient(135deg, #5B8CFF 0%, #7B61FF 55%, #9B5CFF 100%);  color: white;  border-radius: 16px;  height: 56px;  font-weight: 700;  box-shadow: 0 12px 28px rgba(108, 99, 255, 0.32);}
 
-它给我的变美方向是：
-1. {hair_suggestion}
-2. {color_suggestion}
-3. {makeup_suggestion}
-4. {outfit_suggestion}
+18.8 价格样式
+主价格：1.80 USDT参考价：≈ ¥13.0
+CSS：
+.price-main {  font-size: 28px;  font-weight: 800;  color: #5F58FF;}.price-fiat {  font-size: 13px;  color: #7B82A8;}
 
-{soft_comment}
+19. 交互细节
+19.1 商品卡片选中
+选中态：
 
-准备照着试试 ✨
 
-话题：
-{hashtags}
-专题报告文案结构
-标题：
-{topic_title}
+紫色描边
 
-正文：
-我生成了一份 {topic_name}，感觉很适合 {use_case}。
 
-它给我的方向：
-1. {point_1}
-2. {point_2}
-3. {point_3}
+右上角 check
 
-最有用的是：{highlight}
 
-{closing_sentence}
+背景轻微渐变
 
-话题：
-{hashtags}
-十四、分享准备页设计
 
-用户点击「分享到小红书」后，建议不是弹一个很小的弹窗，而是打开一个半屏或整页弹层。
+阴影增强
 
-页面标题
 
-分享到小红书
 
-顶部状态
+19.2 规格不可选
+不可选状态：
+灰色背景禁用点击悬浮提示：当前组合暂不可购买
 
-已为你准备好封面图、完整报告图和种草文案
+19.3 支付网络切换
+TRON 选中时显示：
+推荐到账较快
+ETH 选中时可提示：
+网络费用可能较高
+BASE 选中时：
+请确认钱包支持 BASE 网络
 
-步骤区
-Step 1
+19.4 点击立即支付
+流程：
+校验 Telegram 用户名校验邮箱校验 SKU 是否有效校验库存校验支付网络生成订单跳转支付页
+如果未登录 Telegram，也允许下单，但仍必须填写 Telegram username 和邮箱。
 
-保存小红书封面图
-建议作为笔记第 1 张图
+20. 安全与风控
+20.1 表单校验
+Telegram 用户名：
+^@?[a-zA-Z0-9_]{5,32}$
+邮箱：
+标准邮箱校验
 
-按钮：
+20.2 订单防重复
 
-保存封面图
 
-Step 2
+下单按钮 loading 防重复点击
 
-保存完整报告图
-建议作为笔记第 2 张图
 
-按钮：
+同一用户短时间内相同 SKU 可提示确认
 
-保存完整报告图
 
-Step 3
+支付页订单超时后禁止继续付款
 
-复制小红书文案
-打开小红书后直接粘贴
 
-按钮：
 
-复制文案
+20.3 支付安全
+必须提示：
+请确认转账网络与订单一致，勿跨链支付。
+支付金额建议精确匹配，避免少付或多付。
 
-Step 4
+20.4 Telegram 登录安全
 
-打开小红书发布笔记
 
-按钮：
+服务端校验 Telegram hash
 
-打开小红书
 
-十五、分享页文案预览区
+校验 auth_date 时效
 
-用户应该能看到文案，并且可以手动复制。
 
-样式：
+不信任前端传来的 username
 
-标题：
-AI说我是「轻法式白月光」路线，感觉有点准？
 
-正文：
-刚生成了一份 AI 个人形象报告……
+用户资料以后端校验后的 Telegram 数据为准
 
-按钮：
 
-复制全部文案
-只复制标题
-只复制正文
+Telegram Login Widget 官方文档明确要求校验授权数据完整性，并建议检查 auth_date 以避免使用过期数据。
 
-第一版只做“复制全部文案”即可。
+21. 订单通知逻辑
+21.1 通知渠道
+Telegram BotEmail站内订单页
 
-十六、保存图片的交互细节
-封面图保存
+21.2 通知节点
+订单创建支付成功链上确认完成发货成功订单异常订单超时
 
-展示封面图缩略图，按钮：
+21.3 通知内容
+订单创建：
+您的订单已创建，请在 15 分钟内完成支付。
+支付成功：
+我们已收到您的付款，正在为您处理商品。
+发货成功：
+商品已发送至您的 Telegram 与邮箱，请及时查收。
 
-保存封面图
+22. 开发优先级
+第一阶段：MVP
+必须完成：
 
-如果下载失败：
 
-当前浏览器不支持直接保存，请长按图片保存到相册。
+首页
 
-完整报告图保存
 
-按钮：
+商品详情页
 
-保存完整报告图
 
-如果完整长图太大，建议提示：
+动态规格 / SKU
 
-完整报告图较长，保存可能需要几秒钟。
 
-十七、是否要自动复制文案？
+快速下单
 
-可以，但要用户触发。
 
-移动端浏览器通常要求复制行为由用户点击触发。
-所以不要页面一打开就自动复制，建议：
+购买确认页
 
-用户点击「一键准备分享」时尝试复制
-如果失败，用户再点「复制文案」
 
-弹窗提示：
+支付页
 
-文案已复制，可以打开小红书粘贴发布。
 
-十八、打开小红书的风险提示
+订单完成页
 
-因为 H5 调起 App 不一定稳定，所以按钮旁边写：
 
-若未自动打开，请手动打开小红书。
+订单查询
 
-点击后提示：
 
-打开小红书 → 点击发布 → 选择封面图和报告图 → 粘贴文案
+Telegram 登录
 
-你可以放一个极简教程：
 
-小红书发布步骤：
-1. 点击底部「+」
-2. 选择封面图和报告图
-3. 粘贴文案
-4. 发布笔记
-十九、第一版开发清单
-前端
-结果页新增「分享到小红书」按钮
-新增分享准备弹层 / 分享准备页
-展示封面图预览
-展示完整报告图预览
-展示分享文案
-支持保存 / 下载图片
-支持复制文案
-支持打开小红书 / 提示手动打开
-记录用户点击行为
-后端
-报告生成完成后保存 report_image_url
-新增 xhs_cover_image_url 字段
-新增 share_copy 字段
-新增生成小红书封面图接口
-新增生成分享文案接口
-新增分享行为埋点接口
-支持重新生成封面图
-支持重新生成分享文案
-生图 / 模板
-新增小红书封面图模板
-封面图尺寸固定 1080×1440
-封面图输入字段：
-用户照片
-风格人设
-风格关键词
-一句话结论
-报告类型
-完整报告图继续原有模板
-可选新增摘要图 1080×1440
-二十、封面图生成 prompt 要求
+法币参考价
 
-你的封面图 prompt 不要像完整报告那样复杂。
 
-封面图 prompt 结构
-生成一张小红书风格的竖版封面图，尺寸 1080×1440。
-整体风格：{style_theme}。
-人物：使用用户上传照片中的人物特征，保持自然、真实、精致。
-主标题：{style_persona}。
-副标题：AI 个人形象报告。
-关键词：{keywords}。
-一句话结论：{one_line_summary}。
-视觉要求：人物清晰，标题醒目，留白干净，适合小红书信息流点击。
-不要放过多小字，不要做复杂表格，不要把完整报告内容塞进封面。
-二十一、封面图模板示例
-轻法式白月光封面
-标题：轻法式白月光
-副标题：AI 个人形象报告
-关键词：清透 / 温柔 / 低饱和 / 松弛感
-一句话：不需要大改，增加轻盈和氛围就很出片
-韩系温柔学姐封面
-标题：韩系温柔学姐
-副标题：AI 个人形象报告
-关键词：干净 / 温柔 / 上镜 / 亲和力
-一句话：清新自然，一眼心动的学姐感
-清冷氧气感封面
-标题：清冷氧气感
-副标题：AI 个人形象报告
-关键词：清冷 / 通透 / 轻盈 / 克制高级
-一句话：不张扬，但自带呼吸感
-甜酷千金感封面
-标题：甜酷千金感
-副标题：AI 个人形象报告
-关键词：甜酷 / 精致 / 时髦 / 存在感
-一句话：甜而不腻，酷而有度
-二十二、分享行为埋点
+后台商品与 SKU 配置
 
-建议记录这些事件：
 
-click_share_xhs
-generate_xhs_cover_start
-generate_xhs_cover_success
-save_cover_click
-save_report_click
-copy_text_success
-copy_text_fail
-open_xhs_click
-share_modal_close
+后台订单管理
 
-你后面可以看：
 
-有多少人愿意分享
-哪种风格人设最容易分享
-是封面图吸引，还是报告图吸引
-用户有没有复制文案
-哪个套餐用户分享率最高
-二十三、MVP 版本建议
 
-第一版不要做得太复杂，就做：
+第二阶段：优化
 
-封面图 1080×1440
-完整报告图
-自动生成一段小红书文案
-复制文案按钮
-长按保存图片提示
-打开小红书按钮
-分享步骤说明
 
-暂时不做：
+用户中心
 
-自动发布
-第三方二维码发布
-真正把图片预填到小红书
-多张摘要图
-用户编辑文案
 
-等产品跑起来以后，再考虑升级到“发布二维码”方式。有些第三方工具声称可以通过 API 提交图片和内容并生成二维码，让用户扫码在移动端发布小红书内容，但这类方案需要你额外评估合规、数据安全、稳定性和成本。
+Telegram Bot 通知绑定
 
-最终开发方案一句话
 
-你要做的不是“自动帮用户发小红书”，而是：
+邮件模板管理
 
-报告生成完成后，额外生成一张 1080×1440 的小红书封面图；同时准备完整报告图和种草文案。用户点击分享到小红书时，系统引导他保存两张图、复制文案，并打开小红书完成发布。
 
-这样最稳、最轻，也最适合你现在的 H5 产品。
-# chuandabaogao
+库存预警
+
+
+最近热卖
+
+
+优惠码
+
+
+多语言
+
+
+法币自动定位优化
+
+
+支付网络扩展
+
+
+自动发货接口对接
+
+
+
+23. 总结版产品逻辑
+最终用户路径：
+进入首页↓系统根据 IP 自动显示参考法币↓用户可切换 USD / CNY / EUR 等↓用户选择商品↓选择地区、账号类型、套餐↓右侧快速下单同步更新↓可使用 Telegram 登录，自动填充 Telegram username↓填写邮箱↓选择 USDT 支付网络↓确认订单↓进入支付页↓打开钱包 / 扫码转账↓等待链上确认↓系统自动发货↓Telegram + 邮箱同步通知↓订单完成页展示交付结果
+这版文档可以直接作为你和前端、后端、UI 设计、后台开发沟通的基础版本。

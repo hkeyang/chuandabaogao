@@ -1038,7 +1038,12 @@ function SuccessPage({ state, setState, nav, showToast }: { state: AppState; set
           <div><h3><img src={FULL_CARD_ASSETS.clock} alt="" />有效期</h3><p>自兑换日起</p><strong>365 天内有效</strong><small>请在有效期内使用完毕</small></div>
         </article>
         <article className="gift">
-          <div><h3><img src={FULL_CARD_ASSETS.giftIcon} alt="" />兑换成功！</h3><p>你的专属形象探索之旅正式开启</p></div>
+          <div>
+            <h3><img src={FULL_CARD_ASSETS.giftIcon} alt="" />兑换成功！</h3>
+            <p>你的专属形象探索之旅正式开启</p>
+            <strong>现在可以开始选择报告类型</strong>
+            <small>建议先生成综合形象报告，再继续探索专题</small>
+          </div>
         </article>
       </section>
 
