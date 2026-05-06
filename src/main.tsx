@@ -346,6 +346,8 @@ function loadState(): AppState {
       privacyAccepted: true,
       progress: 62,
       isGenerating: true,
+      photoUrl: CONFIRM_GENERATE_ASSETS.uploadedPhoto,
+      photoName: "示例上传照片",
       reports: [{
         id: "rpt_demo",
         type: "comprehensive",
@@ -1707,7 +1709,6 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
 
 function ProgressPage({ progress, nav }: { progress: number; nav: (r: Route) => void }) {
   const displayProgress = useAnimatedNumber(progress, 720);
-  const fitScale = useViewportFitScale(760, 1280);
   const percent = Math.round(displayProgress);
   const complete = progress >= 100;
   const statusText = complete ? "生成完成" : "生成中...";
@@ -1721,7 +1722,7 @@ function ProgressPage({ progress, nav }: { progress: number; nav: (r: Route) => 
   };
 
   return (
-    <main className="page progress-stage" style={{ "--progress-fit-scale": fitScale } as React.CSSProperties}>
+    <main className="page progress-stage">
       <div className="progress-stage-layout">
         <div className="progress-stage-bg">
           <img className="progress-bg-image" src={REPORT_PROGRESS_ASSETS.background} alt="" aria-hidden="true" />
@@ -1859,22 +1860,6 @@ function useAnimatedNumber(target: number, duration = 700) {
     return () => window.cancelAnimationFrame(raf);
   }, [target, duration]);
   return value;
-}
-
-function useViewportFitScale(baseWidth: number, baseHeight: number) {
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const update = () => {
-      const widthScale = (window.innerWidth - 24) / baseWidth;
-      const heightScale = (window.innerHeight - 24) / baseHeight;
-      const next = Math.min(1, Math.max(0.56, Math.min(widthScale, heightScale)));
-      setScale(next);
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, [baseHeight, baseWidth]);
-  return scale;
 }
 
 function ResultPage({ state, nav, showToast }: { state: AppState; nav: (r: Route) => void; showToast: (t: string) => void }) {
