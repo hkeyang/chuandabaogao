@@ -791,7 +791,7 @@ function App() {
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} />;
-      case "progress": return <ProgressPage progress={state.progress} nav={nav} />;
+      case "progress": return <ProgressPage progress={state.progress} hasReport={state.reports.length > 0} nav={nav} showToast={showToast} />;
       case "result": return <ResultPage state={state} showComprehensiveReport={showComprehensiveReport} nav={nav} showToast={showToast} />;
       case "admin": return <AdminPage state={state} setState={setState} updateAdmin={updateAdmin} showToast={showToast} />;
       default: return <HomePage products={products} state={state} nav={nav} redeem={redeem} showToast={showToast} />;
@@ -1774,18 +1774,18 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
   );
 }
 
-function ProgressPage({ progress, nav }: { progress: number; nav: (r: Route) => void }) {
+function ProgressPage({ progress, hasReport, nav, showToast }: { progress: number; hasReport: boolean; nav: (r: Route) => void; showToast: (t: string) => void }) {
   const displayProgress = useAnimatedNumber(progress, 720);
   const percent = Math.round(displayProgress);
-  const complete = progress >= 100;
-  const statusText = complete ? "生成完成" : "生成中...";
-  const bottomLabel = complete ? "查看报告" : "稍后再看";
+  const ready = progress >= 100 && hasReport;
+  const statusText = ready ? "生成完成" : "生成中...";
+  const bottomLabel = ready ? "查看报告" : "稍后再看";
   const handleBottomClick = () => {
-    if (complete) {
+    if (ready) {
       nav("result");
       return;
     }
-    nav("home");
+    showToast("报告还在生成中，请稍后再试");
   };
 
   return (
@@ -1823,7 +1823,7 @@ function ProgressPage({ progress, nav }: { progress: number; nav: (r: Route) => 
             <img src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
             <img src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
           </div>
-          <h1><span>{complete ? "报告" : "报告"}</span>{complete ? "生成完成" : "正在生成中"}</h1>
+          <h1><span>报告</span>{ready ? "生成完成" : "正在生成中"}</h1>
           <p>预计需要 <strong>1~3 分钟</strong>，可切到其他页面，回来自动同步进度</p>
         </section>
 
@@ -1849,7 +1849,7 @@ function ProgressPage({ progress, nav }: { progress: number; nav: (r: Route) => 
             />
           </svg>
           <div className="progress-ring-content">
-            <div className={`progress-percent ${percent >= 100 ? "is-100" : ""}`} aria-label={`${percent} percent`}>{percent}<span>%</span></div>
+            <div className={`progress-percent ${ready ? "is-100" : ""}`} aria-label={`${percent} percent`}>{percent}<span>%</span></div>
             <div className="progress-status">{statusText}</div>
           </div>
           <span className="progress-ring-dot" style={{ "--progress": progress } as React.CSSProperties} />
@@ -1879,7 +1879,7 @@ function ProgressPage({ progress, nav }: { progress: number; nav: (r: Route) => 
                       <div className="progress-loading-dots" aria-hidden="true">
                         {Array.from({ length: 8 }).map((_, dotIndex) => <span key={dotIndex} />)}
                       </div>
-                    ) : status === "done" && complete ? (
+                    ) : status === "done" && ready ? (
                       <Check size={18} />
                     ) : status === "done" ? (
                       <img className="progress-card-sparkle" src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
@@ -1894,7 +1894,7 @@ function ProgressPage({ progress, nav }: { progress: number; nav: (r: Route) => 
           })}
         </section>
 
-        <button className={`progress-bottom-btn ${complete ? "is-complete" : ""}`} onClick={handleBottomClick}>
+        <button className={`progress-bottom-btn ${ready ? "is-complete" : ""}`} onClick={handleBottomClick}>
           {bottomLabel}
         </button>
       </div>
