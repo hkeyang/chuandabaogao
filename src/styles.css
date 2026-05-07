@@ -6999,27 +6999,28 @@ body {
 
 .choose-report-page .choose-topic-image {
   width: 100%;
-  aspect-ratio: 1345 / 837;
-  border-radius: 22px;
-  overflow: hidden;
+  display: block;
+  border-radius: 0;
+  overflow: visible;
   background: transparent;
   border: 0;
 }
 
 .choose-report-page .choose-topic-image img {
-  width: 110.4%;
+  width: 100%;
   height: auto;
-  max-width: none;
+  max-width: 100%;
+  display: block;
   border-radius: 0;
   object-fit: contain;
-  transform: translate(-4.2%, -9.2%);
-  transform-origin: top left;
 }
 
 .choose-report-page .choose-topic-card span {
-  min-width: 132px;
-  height: 42px;
-  margin-top: -10px;
+  min-width: 126px;
+  height: 38px;
+  margin-top: 4px;
+  padding-inline: 16px;
+  font-size: 13px;
 }
 
 .choose-header {
