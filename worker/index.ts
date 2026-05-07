@@ -138,9 +138,7 @@ function promptFor(input: Json) {
   const change = String(input.change_level || "系统推荐");
   return `你是一名专业的 AI 形象报告设计师，请基于用户上传照片生成中文个人形象报告图。
 
-输出两张图：
-1. 完整报告长图：1080×1920 或更长，适合保存查看。
-2. 小红书封面图：1080×1440，3:4，标题大、人物清晰、留白干净。
+输出一张完整报告长图，竖版 9:16，适合保存查看。画面中必须使用用户上传照片作为人物参考，不要套用固定女性模板。
 
 报告类型：${reportType}
 报告名称：${reportLabel}
@@ -164,32 +162,110 @@ ${typePrompt(reportType)}
 保留用户本人核心长相特征，不要过度美颜，不要攻击外貌，不要低俗或成人化。`;
 }
 
-async function imageGenerate(env: Env, payload: Json, prompt: string) {
+async function imageGenerate(env: Env, payload: Json, prompt: string): Promise<Json> {
   if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
-  const response = await fetch(env.OPENAI_IMAGE_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: env.OPENAI_IMAGE_MODEL || "gpt-image-2",
-      prompt,
-      size: "1080x1920",
-      n: 1,
-      response_format: "b64_json",
-      user_photo_url: payload.user_photo_data_url || payload.user_photo_url,
-      extra_outputs: [{ name: "xhs_cover", size: "1080x1440" }],
-    }),
-  });
-  if (!response.ok) throw new Error(`image endpoint failed: ${response.status}`);
-  return response.json() as Promise<Json>;
+  const userPhoto = String(payload.user_photo_data_url || payload.user_photo_url || "");
+  if (!userPhoto) throw new Error("user photo is required for image generation");
+
+  const apiBase = env.OPENAI_IMAGE_ENDPOINT.replace(/\/images\/generations\/?$/, "");
+  const authHeaders = { authorization: `Bearer ${env.OPENAI_API_KEY}` };
+
+  const uploadPhoto = async () => {
+    if (/^https?:\/\//i.test(userPhoto)) return userPhoto;
+    const match = userPhoto.match(/^data:(image\/(?:png|jpe?g|webp|gif));base64,(.+)$/i);
+    if (!match) throw new Error("user photo must be a base64 image data URL");
+    const [, mimeType, b64] = match;
+    const extension = mimeType.includes("png") ? "png" : mimeType.includes("webp") ? "webp" : "jpg";
+    const binary = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0));
+    const form = new FormData();
+    form.append("file", new File([binary], `user-photo.${extension}`, { type: mimeType }));
+
+    const response = await fetch(`${apiBase}/uploads/images`, {
+      method: "POST",
+      headers: authHeaders,
+      body: form,
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`image upload failed: ${response.status}${detail ? ` ${detail.slice(0, 240)}` : ""}`);
+    }
+    const result = await response.json() as Json;
+    if (typeof result.url !== "string") throw new Error("image upload response missing url");
+    return result.url;
+  };
+
+  const waitForTask = async (taskId: string) => {
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+    for (let attempt = 0; attempt < 72; attempt += 1) {
+      const response = await fetch(`${apiBase}/tasks/${taskId}?language=zh`, { headers: authHeaders });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(`image task query failed: ${response.status}${detail ? ` ${detail.slice(0, 240)}` : ""}`);
+      }
+      const result = await response.json() as Json;
+      const data = typeof result.data === "object" && result.data ? result.data as Json : result;
+      const status = String(data.status || "");
+      if (status === "completed") {
+        const taskResult = typeof data.result === "object" && data.result ? data.result as Json : {};
+        const images = Array.isArray(taskResult.images) ? taskResult.images as Json[] : [];
+        const first = images[0] || {};
+        const urls = Array.isArray(first.url) ? first.url : [];
+        const url = typeof urls[0] === "string" ? urls[0] : typeof first.url === "string" ? first.url : "";
+        if (!url) throw new Error("image task completed without image url");
+        return url;
+      }
+      if (["failed", "cancelled"].includes(status)) {
+        const taskError = typeof data.error === "object" && data.error ? data.error as Json : {};
+        throw new Error(String(taskError.message || `image task ${status}`));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+    }
+    throw new Error(`image task timed out: ${taskId}`);
+  };
+
+  const photoUrl = await uploadPhoto();
+  const generateFromPhoto = async (imagePrompt: string, size: string) => {
+    const response = await fetch(env.OPENAI_IMAGE_ENDPOINT, {
+      method: "POST",
+      headers: { ...authHeaders, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: env.OPENAI_IMAGE_MODEL || "gpt-image-2",
+        prompt: imagePrompt,
+        size,
+        n: 1,
+        image_urls: [photoUrl],
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`image task submit failed: ${response.status}${detail ? ` ${detail.slice(0, 240)}` : ""}`);
+    }
+    const result = await response.json() as Json;
+    const data = Array.isArray(result.data) ? result.data[0] as Json : result.data as Json | undefined;
+    const taskId = String(data?.task_id || result.task_id || "");
+    if (!taskId) throw new Error("image task submit response missing task_id");
+    return waitForTask(taskId);
+  };
+
+  const reportImageUrl = await generateFromPhoto(prompt, "9:16");
+  return { data: [{ image_url: reportImageUrl }] };
 }
 
 async function storeB64(env: Env, key: string, b64: string, type = "image/png") {
   const bucket = (env as { R2?: R2Bucket }).R2;
   if (!bucket) throw new Error("R2 binding is not configured");
   const binary = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0));
+  await bucket.put(key, binary, { httpMetadata: { contentType: type } });
+  return `${env.R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
+}
+
+async function storeRemoteImage(env: Env, key: string, sourceUrl: string) {
+  const bucket = (env as { R2?: R2Bucket }).R2;
+  if (!bucket) throw new Error("R2 binding is not configured");
+  const response = await fetch(sourceUrl);
+  if (!response.ok) throw new Error(`generated image download failed: ${response.status}`);
+  const type = response.headers.get("content-type") || "image/png";
+  const binary = new Uint8Array(await response.arrayBuffer());
   await bucket.put(key, binary, { httpMetadata: { contentType: type } });
   return `${env.R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
 }
@@ -283,6 +359,12 @@ async function handleApi(request: Request, env: Env, url: URL) {
       if (typeof image.xhs_cover_b64_json === "string") {
         coverImageUrl = await storeB64(env, `reports/${reportId}-xhs-cover.png`, image.xhs_cover_b64_json);
       }
+      if (typeof image.image_url === "string") {
+        reportImageUrl = await storeRemoteImage(env, `reports/${reportId}.png`, image.image_url);
+      }
+      if (typeof image.xhs_cover_image_url === "string") {
+        coverImageUrl = await storeRemoteImage(env, `reports/${reportId}-xhs-cover.png`, image.xhs_cover_image_url);
+      }
       if (!reportImageUrl) {
         throw new Error("image generation completed without report image");
       }
@@ -312,8 +394,8 @@ async function handleApi(request: Request, env: Env, url: URL) {
       report_id: reportId,
       cover_image_url: report?.xhs_cover_image_url || "",
       report_image_url: report?.report_image_url || "",
-      share_title: `AI说我是「${input.style_persona || "轻法式白月光"}」路线，感觉有点准？`,
-      copy_text: `AI说我是「${input.style_persona || "轻法式白月光"}」路线，感觉有点准？\n\n刚生成了一份 AI 个人形象报告，准备照着试试。\n\n#AI形象报告 #变美思路 #普通女生变美`,
+      share_title: `AI说我是「${input.style_persona || "轻法式白月光"}」路线，这次感觉还挺准的？`,
+      copy_text: `AI说我是「${input.style_persona || "轻法式白月光"}」路线，这次感觉还挺准的。\n\n刚生成了一份 AI 个人形象报告，重点不是大改，是把整体氛围理顺。\n\n#AI形象报告 #变美思路 #普通女生变美`,
     });
   }
 

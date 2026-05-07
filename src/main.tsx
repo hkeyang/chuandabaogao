@@ -495,7 +495,7 @@ ${moduleLines.join("\n")}
 
 function xhsCopy(type: ReportType, personaId: PersonaId, subjectGender: UserReport["subjectGender"] = "unknown") {
   if (subjectGender === "male") {
-    return `我生成了一份 ${type.name}，重点看的是发型、穿搭和整体形象协调度。
+    return `我生成了一份 ${type.name}，重点看的是发型、穿搭和整体协调度。
 
 这份报告会结合照片给出更适合男性或中性男性风格的建议，不会套用女性化模板。
 
@@ -508,28 +508,27 @@ function xhsCopy(type: ReportType, personaId: PersonaId, subjectGender: UserRepo
   }
   const persona = PERSONAS[personaId];
   if (type.id !== "comprehensive") {
-    return `我生成了一份 ${type.name}，感觉很适合变美前参考。
+    return `我刚生成了一份 ${type.name}，先把这个方向看明白就够了。
 
-它给我的方向：
-1. ${type.modules[0]}更适合先从自然、低负担的路线尝试
-2. 推荐内容会结合照片和偏好，不是盲目套模板
-3. 还会提醒哪些方向需要谨慎尝试
+它给我的重点是：
+1. ${type.modules[0]}优先看更自然、低负担的路线
+2. 建议会结合照片和偏好，不是套模板
+3. 也会提醒哪些方向要谨慎尝试
 
-最有用的是它把建议整理成一张图，保存下来就能慢慢看。
+保存下来，慢慢照着改就行。
 
 #AI形象报告 #变美思路 #${type.name.replace("专题", "")} #普通女生变美`;
   }
-  return `AI说我是「${persona.title}」路线，感觉有点准？
+  return `AI 说我是「${persona.title}」路线，这次感觉还挺准的。
 
-刚生成了一份 AI 个人形象报告，关键词是：${persona.keywords.join(" / ")}。
+刚生成了一份 AI 个人形象报告，重点不是大改，是把整体氛围理顺。
+我最想先参考的 4 点是：
+1. 发型更适合轻层次和清爽轮廓
+2. 发色更适合低饱和、自然过渡
+3. 妆容重点放在清透和提气色
+4. 穿搭多选更轻、更干净的单品
 
-它给我的变美方向是：
-1. 发型增加轻层次，不要太厚重
-2. 发色更适合低饱和、自然过渡的棕调
-3. 妆容重点放在清透底妆和温柔唇色
-4. 穿搭多选奶油白、燕麦色、浅咖色
-
-感觉不是大改造，而是把整体氛围变轻、变柔、变干净。
+先保存下来，照着慢慢试。
 
 #AI形象报告 #变美思路 #个人风格定位 #发型推荐 #普通女生变美`;
 }
@@ -1216,6 +1215,11 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
         <h1>选择报告类型</h1>
       </header>
 
+      <section className="choose-lead">
+        <span>先看综合，再拆专题</span>
+        <p>一张综合图先看整体方向，四个专题再分别补发型、色彩、穿搭和场景。</p>
+      </section>
+
       <section className="choose-quota" aria-label="剩余报告次数">
         {showComprehensiveReport && <span><ReceiptText />综合报告剩余 <b>{rights.comprehensive}</b></span>}
         <span><KeyRound />专题报告剩余 <b>{rights.topic}</b></span>
@@ -1225,14 +1229,15 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
         <section className={`choose-main-card ${rights.comprehensive > 0 ? "" : "is-disabled"}`}>
           <div className="choose-main-copy">
             <div className="choose-eyebrow"><Sparkles />全案主推</div>
-            <h2>综合形象报告 <span>全案专享</span></h2>
-            <p>全方位解析你的个人形象</p>
+            <h2>综合形象报告 <span>先看总方向</span></h2>
+            <p>先把发型、色彩、妆容、穿搭和场景感放到一张图里，再决定后面要不要补专题。</p>
             <ul>
-              {["发型发色分析", "个人色彩搭配", "妆容定制建议", "穿搭风格方案", "场景Look推荐"].map((item) => (
+              {["先看整体风格定位", "再拆发型发色和妆容", "顺手看穿搭与场景建议", "适合保存下来反复对照", "一张图先理清方向"].map((item) => (
                 <li key={item}><Check />{item}</li>
               ))}
             </ul>
-            <button className="choose-primary-btn" onClick={() => chooseReport("comprehensive")}>生成综合形象报告 ✦</button>
+            <button className="choose-primary-btn" onClick={() => chooseReport("comprehensive")} disabled={rights.comprehensive <= 0}>生成这份综合报告</button>
+            <p className="choose-main-note">{rights.comprehensive > 0 ? "建议先生成这份，再按专题补充探索。" : "综合报告次数不足，先购买全案探索卡再来。"}</p>
           </div>
           <div className="choose-main-visual">
             <img className="choose-badge" src={CHOOSE_REPORT_ASSETS.badge} alt="全案专享" />
@@ -1248,13 +1253,20 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
             style={{ "--topic-border": topic.border, "--topic-tint": topic.tint } as React.CSSProperties}
             key={topic.id}
             onClick={() => chooseReport(topic.id)}
+            disabled={rights.topic <= 0}
+            aria-disabled={rights.topic <= 0}
           >
-            <h2>{topic.title}</h2>
-            <p>{topic.subtitle}</p>
+            <div className="choose-topic-copy">
+              <h2>{topic.title}</h2>
+              <p>{topic.subtitle}</p>
+            </div>
             <div className="choose-topic-image">
               <img src={topic.image} alt={`${topic.title}配图`} />
             </div>
-            <span>选择该专题</span>
+            <div className="choose-topic-footer">
+              <span>{rights.topic > 0 ? "选择该专题" : "当前次数不足"}</span>
+              <small>{rights.topic > 0 ? "点开就能继续生成" : "先补专题权益后再来"}</small>
+            </div>
           </button>
         ))}
       </section>
@@ -1967,14 +1979,30 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
   const persona = PERSONAS[report.persona];
   const sharePhoto = report.coverImageUrl || state.photoUrl;
   if (!report.reportImageUrl) {
-    return <Empty title="报告生成失败" text={report.error || "没有拿到完整报告图，请重新生成。"} action="重新生成" onClick={() => nav("confirm")} />;
+    if (report.status === "failed") {
+      return <Empty title="报告生成失败" text={report.error || "没有拿到完整报告图，请重新生成。"} action="重新生成" onClick={() => nav("confirm")} />;
+    }
   }
   return (
     <main className="result-page">
       <ResultNavbar nav={nav} onShare={() => setShareOpen(true)} />
-      <article className="report-canvas beauty-report-canvas generated-report-shell" id="report-card">
-        <img className="generated-report-image" src={report.reportImageUrl} alt={`${type.name}生成结果`} />
-      </article>
+      <section className="result-summary">
+        <div className="result-summary-copy">
+          <span className="result-summary-eyebrow">本次结果</span>
+          <h2>{type.name}</h2>
+          <p>{persona.title} · {persona.summary}</p>
+        </div>
+        <div className="result-summary-tags">
+          {type.tags.map((tag) => <span key={tag}>{tag}</span>)}
+        </div>
+      </section>
+      {report.reportImageUrl ? (
+        <article className="report-canvas beauty-report-canvas generated-report-shell" id="report-card">
+          <img className="generated-report-image" src={report.reportImageUrl} alt={`${type.name}生成结果`} />
+        </article>
+      ) : (
+        <ReportCanvas id="report-card" type={type} persona={persona} className="result-fallback-report" />
+      )}
       <ResultActionBar rights={state.rights} showComprehensiveReport={showComprehensiveReport} onDownload={() => downloadNode("report-card", "aisea-report.png", showToast)} onGenerate={() => nav("select")} onShare={() => setShareOpen(true)} />
       {shareOpen && <ShareSheet report={report} type={type} photo={sharePhoto} close={() => setShareOpen(false)} showToast={showToast} />}
     </main>
@@ -1986,7 +2014,7 @@ function ResultNavbar({ nav, onShare }: { nav: (r: Route) => void; onShare: () =
 }
 
 function ResultActionBar({ rights, showComprehensiveReport, onDownload, onGenerate, onShare }: { rights: Rights; showComprehensiveReport: boolean; onDownload: () => void; onGenerate: () => void; onShare: () => void }) {
-  return <footer className="result-bottom-bar"><div className="result-rights">{showComprehensiveReport && <span><FileText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}<span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div><div className="result-primary-actions"><button className="result-download-btn" onClick={onDownload}><Download /><span>下载完整报告<small>高清大图 保存永久</small></span></button><button className="result-generate-btn" onClick={onGenerate}><PackagePlus /><span>继续生成专题报告<small>深度解锁更多变美方案</small></span></button></div><button className="result-share-btn" onClick={onShare}><Heart /><span className="result-share-copy"><b>分享你的变美报告</b><small>记录美好蜕变，收获更多赞美与灵感</small></span><span className="result-share-channels"><i>小红书</i><i>微信</i><i>朋友圈</i></span></button></footer>;
+  return <footer className="result-bottom-bar"><div className="result-rights">{showComprehensiveReport && <span><FileText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}<span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div><div className="result-primary-actions"><button className="result-download-btn" onClick={onDownload}><Download /><span>下载完整报告<small>高清大图，保存永久</small></span></button><button className="result-generate-btn" onClick={onGenerate}><PackagePlus /><span>继续生成专题<small>再补一个方向看看</small></span></button></div><button className="result-share-btn" onClick={onShare}><Heart /><span className="result-share-copy"><b>分享这份结果</b><small>先保存，再发到小红书、微信或朋友圈</small></span><span className="result-share-channels"><i>小红书</i><i>微信</i><i>朋友圈</i></span></button></footer>;
 }
 
 function VisualSlot({ label, tone, compact = false }: { label: string; tone: string; compact?: boolean }) {
@@ -2000,10 +2028,10 @@ function VisualSlot({ label, tone, compact = false }: { label: string; tone: str
   return <div className={`visual-slot tone-${tone} ${compact ? "compact" : ""}`}><span>{icons[tone] || <ImageDown />}</span><b>{label}</b><small>素材占位</small></div>;
 }
 
-function ReportCanvas({ id, type, persona }: { id: string; type: ReportType; persona: typeof PERSONAS.softFrench }) {
+function ReportCanvas({ id, type, persona, className = "" }: { id: string; type: ReportType; persona: typeof PERSONAS.softFrench; className?: string }) {
   const title = type.id === "comprehensive" ? BEAUTY_REPORT.title : `${type.name}\n变美报告`;
   return (
-    <article className="report-canvas beauty-report-canvas" id={id}>
+    <article className={`report-canvas beauty-report-canvas ${className}`} id={id}>
       <HeroBanner title={title} persona={persona} />
       <div className="beauty-report-grid">
         <SectionCard index={1} title="发型推荐" className="span-wide"><HairstyleSection /></SectionCard>
@@ -2073,7 +2101,7 @@ function ShareSheet({ report, type, photo, close, showToast }: { report: UserRep
       showToast("当前浏览器不支持自动复制，请长按文案手动复制");
     }
   };
-  return <div className="sheet-backdrop" onClick={close}><section className="share-sheet" onClick={(e) => e.stopPropagation()}><header><div><h2>分享到小红书</h2><p>已为你准备好封面图、完整报告图和种草文案</p></div><button onClick={close}>×</button></header><div className="share-grid">{report.coverImageUrl ? <img className="xhs-generated-cover" src={report.coverImageUrl} alt="小红书封面图" /> : <XhsCover persona={persona} photo={photo} />}<div className="share-steps"><StepButton n={1} icon={<ImageDown />} title="保存小红书封面图" text="建议作为笔记第 1 张图" onClick={() => showToast("移动端请长按封面图保存到相册")} /><StepButton n={2} icon={<Download />} title="保存完整报告图" text="建议作为笔记第 2 张图" onClick={() => showToast("移动端请长按完整报告图保存")} /><StepButton n={3} icon={<Clipboard />} title="复制小红书文案" text="打开小红书后直接粘贴" onClick={copyShare} /><StepButton n={4} icon={<ExternalLink />} title="打开小红书发布笔记" text="若未自动打开，请手动打开" onClick={() => { window.location.href = "xhsdiscover://"; setTimeout(() => showToast("如未自动打开，请手动打开小红书"), 800); }} /><textarea readOnly value={copy} /></div></div></section></div>;
+  return <div className="sheet-backdrop" onClick={close}><section className="share-sheet" onClick={(e) => e.stopPropagation()}><header><div><h2>分享到小红书</h2><p>先保存封面和完整报告，再复制文案发布</p></div><button onClick={close}>×</button></header><div className="share-grid">{report.coverImageUrl ? <img className="xhs-generated-cover" src={report.coverImageUrl} alt="小红书封面图" /> : <XhsCover persona={persona} photo={photo} />}<div className="share-steps"><section className="share-phase"><h3>第一步，先保存图片</h3><StepButton n={1} icon={<ImageDown />} title="保存封面图" text="建议作为笔记第 1 张图" onClick={() => showToast("移动端请长按封面图保存到相册")} /><StepButton n={2} icon={<Download />} title="保存完整报告图" text="建议作为笔记第 2 张图" onClick={() => showToast("移动端请长按完整报告图保存")} /></section><section className="share-phase"><h3>第二步，再复制并发布</h3><StepButton n={3} icon={<Clipboard />} title="复制小红书文案" text="打开小红书后直接粘贴" onClick={copyShare} /><StepButton n={4} icon={<ExternalLink />} title="打开小红书发布笔记" text="若未自动打开，请手动打开" onClick={() => { window.location.href = "xhsdiscover://"; setTimeout(() => showToast("如未自动打开，请手动打开小红书"), 800); }} /><textarea readOnly value={copy} /></section></div></div></section></div>;
 }
 
 function XhsCover({ persona, photo }: { persona: typeof PERSONAS.softFrench; photo: string }) {

@@ -7187,3 +7187,303 @@ body {
     right: 72px;
   }
 }
+
+/* Light hierarchy pass for choose/result/share pages. Keep this at the end so it
+   wins over the older mobile rail rules above. */
+.choose-report-page {
+  width: 100%;
+  max-width: 100%;
+  padding-inline: 16px;
+}
+
+.app-shell:has(.choose-report-page) {
+  width: min(100vw, 430px);
+  max-width: 100vw;
+}
+
+.choose-lead {
+  position: relative;
+  z-index: 2;
+  margin: 6px 0 16px;
+}
+
+.choose-lead span {
+  color: #9b7c72;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.choose-lead p {
+  margin: 8px 0 0;
+  color: #4d3834;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.choose-quota {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 14px 0 22px;
+}
+
+.choose-quota span {
+  justify-content: flex-start;
+  padding-inline: 18px;
+}
+
+.choose-main-card,
+.choose-report-page .choose-main-card {
+  grid-template-columns: 1fr;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 24px 20px;
+}
+
+.choose-main-card::before {
+  display: none;
+}
+
+.choose-main-copy,
+.choose-report-page .choose-main-copy {
+  padding-left: 0;
+}
+
+.choose-eyebrow {
+  display: inline-flex;
+  width: max-content;
+  height: 30px;
+  margin-bottom: 12px;
+}
+
+.choose-main-copy h2,
+.choose-report-page .choose-main-copy h2 {
+  font-size: 27px;
+}
+
+.choose-main-copy p,
+.choose-report-page .choose-main-copy p {
+  margin: 14px 0 16px;
+}
+
+.choose-main-note {
+  margin: 12px 0 0;
+  color: #7f6861;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.choose-primary-btn {
+  max-width: 100%;
+}
+
+.choose-main-visual,
+.choose-report-page .choose-main-visual {
+  min-height: 210px;
+  max-width: 100%;
+  align-self: auto;
+  justify-content: center;
+}
+
+.choose-preview,
+.choose-report-page .choose-preview {
+  width: min(72%, 230px);
+  max-height: 210px;
+  object-fit: contain;
+}
+
+.choose-badge,
+.choose-report-page .choose-badge {
+  top: 8px;
+  right: 52px;
+  width: 62px;
+}
+
+.choose-topic-grid,
+.choose-report-page .choose-topic-grid {
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.choose-topic-card,
+.choose-report-page .choose-topic-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  min-height: 0;
+  padding: 18px 14px 16px;
+}
+
+.choose-topic-copy h2,
+.choose-topic-card h2,
+.choose-report-page .choose-topic-card h2 {
+  margin: 0;
+  font-size: 18px;
+  white-space: normal;
+}
+
+.choose-topic-copy p,
+.choose-topic-card p,
+.choose-report-page .choose-topic-card p {
+  min-height: 0;
+  margin: 6px 0 0;
+}
+
+.choose-topic-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.choose-topic-footer span,
+.choose-topic-card span,
+.choose-report-page .choose-topic-card span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 122px;
+  height: 38px;
+  margin: 0;
+}
+
+.choose-topic-footer small {
+  color: #7f6861;
+  font-size: 13px;
+}
+
+.app-shell:has(.result-page) {
+  max-width: min(520px, 100%);
+  margin: 0 auto;
+}
+
+.result-page {
+  padding: 72px 12px 28px;
+}
+
+.result-summary {
+  width: min(1080px, 100%);
+  margin: 0 auto 14px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid rgba(243, 215, 215, .92);
+}
+
+.result-summary-eyebrow {
+  color: var(--report-primary);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.result-summary h2 {
+  margin: 8px 0 0;
+  color: #5f413a;
+  font-size: 24px;
+}
+
+.result-summary p {
+  margin: 8px 0 12px;
+  color: #8f7169;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.result-summary-tags {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.result-summary-tags span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #b72f62;
+  background: #fff1f6;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-canvas.generated-report-shell,
+.report-canvas.beauty-report-canvas.result-fallback-report {
+  aspect-ratio: auto;
+  overflow: visible;
+}
+
+.result-bottom-bar {
+  position: static;
+  width: min(1080px, 100%);
+  translate: none;
+  grid-template-columns: 1fr;
+  margin: 16px auto 0;
+  padding: 14px;
+  border-radius: 24px;
+}
+
+.result-primary-actions {
+  grid-template-columns: 1fr;
+}
+
+.result-download-btn,
+.result-generate-btn {
+  min-height: 58px;
+  font-size: 17px;
+}
+
+.result-download-btn small,
+.result-generate-btn small {
+  letter-spacing: 0;
+}
+
+.result-share-btn {
+  min-height: 64px;
+  padding: 12px 16px;
+  border-radius: 22px;
+  font-size: 16px;
+}
+
+.result-share-channels {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.result-share-channels i {
+  min-width: 0;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.share-sheet header p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.share-phase {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .78);
+}
+
+.share-phase + .share-phase {
+  margin-top: 12px;
+}
+
+.share-phase h3 {
+  margin: 0 0 10px;
+  color: var(--brown);
+  font-size: 15px;
+}
+
+.share-steps textarea {
+  width: 100%;
+  min-height: 126px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  line-height: 1.6;
+  resize: vertical;
+}
