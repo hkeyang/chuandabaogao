@@ -209,7 +209,7 @@ export const DEFAULT_ADMIN: AdminState = {
 };
 
 export const preferenceOptions = {
-  style: ["系统自动推荐", "清爽利落", "温柔精致", "中性简约", "时尚个性"],
+  style: ["系统推荐", "清爽利落", "温柔精致", "中性简约", "时尚个性"],
   scene: ["系统推荐", "日常干净", "通勤 / 上学", "拍照上镜", "聚会活动", "风格焕新"],
   change: ["系统推荐", "轻微优化", "明显变化", "大胆尝试"],
 };
@@ -223,7 +223,7 @@ export const preferenceSections: PreferenceSection[] = [
     icon: PREFERENCE_ASSETS.sparkle,
     mode: "single",
     options: [
-      { id: "auto", label: "系统自动推荐", icon: PREFERENCE_ASSETS.magicPink, color: "#ff4f8b", bg: "#fff1f6", tile: PREFERENCE_ASSETS.tileBlush },
+      { id: "auto", label: "系统推荐", icon: PREFERENCE_ASSETS.magicPink, color: "#ff4f8b", bg: "#fff1f6", tile: PREFERENCE_ASSETS.tileBlush },
       { id: "fresh", label: "清爽利落", icon: PREFERENCE_ASSETS.leaf, color: "#7fa9dc", bg: "#f5f9ff", tile: PREFERENCE_ASSETS.tileIce },
       { id: "gentle", label: "温柔精致", icon: PREFERENCE_ASSETS.flower, color: "#f56f98", bg: "#fff4f8", tile: PREFERENCE_ASSETS.tileBlush },
       { id: "neutral", label: "中性简约", icon: PREFERENCE_ASSETS.square, color: "#9a8d84", bg: "#fffaf5", tile: PREFERENCE_ASSETS.tileNeutral },

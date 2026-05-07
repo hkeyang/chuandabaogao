@@ -100,7 +100,7 @@ const FULL_CARD_ASSETS = {
 
 const CHOOSE_REPORT_ASSETS = {
   badge: new URL("../assets/aisea_icon_03-choose report/03_全案专享徽章.png", import.meta.url).href,
-  comprehensivePreview: new URL("../assets/aisea_icon_03-choose report/01_综合形象报告_无棋盘格.png", import.meta.url).href,
+  comprehensivePreview: new URL("../assets/aisea_icon_01/hair-hero-user01.png", import.meta.url).href,
   hair: new URL("../assets/aisea_icon_03-choose report/02_发型发色专题_无棋盘格.png", import.meta.url).href,
   makeup: new URL("../assets/aisea_icon_03-choose report/03_色彩妆容专题_无棋盘格.png", import.meta.url).href,
   outfit: new URL("../assets/aisea_icon_03-choose report/04_穿搭配饰专题_无棋盘格.png", import.meta.url).href,
@@ -1778,7 +1778,7 @@ function ProgressPage({ progress, hasReport, nav, showToast }: { progress: numbe
   const displayProgress = useAnimatedNumber(progress, 720);
   const percent = Math.round(displayProgress);
   const ready = progress >= 100 && hasReport;
-  const statusText = ready ? "生成完成" : "生成中...";
+  const statusText = ready ? "进度已同步" : "生成中...";
   const bottomLabel = ready ? "查看报告" : "稍后再看";
   const handleBottomClick = () => {
     if (ready) {
@@ -1823,8 +1823,11 @@ function ProgressPage({ progress, hasReport, nav, showToast }: { progress: numbe
             <img src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
             <img src={REPORT_PROGRESS_ASSETS.sparklePink} alt="" aria-hidden="true" />
           </div>
-          <h1><span>报告</span>{ready ? "生成完成" : "正在生成中"}</h1>
-          <p>预计需要 <strong>1~3 分钟</strong>，可切到其他页面，回来自动同步进度</p>
+          <h1>报告正在生成中</h1>
+          <p className="progress-title-copy">
+            <strong>预计需要 1~5 分钟</strong>
+            <span>可切到其他页面，回来自动同步进度</span>
+          </p>
         </section>
 
         <section className="progress-ring-shell" aria-label="生成进度">
