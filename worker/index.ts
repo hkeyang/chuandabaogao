@@ -73,66 +73,93 @@ async function requireAdmin(request: Request, env: Env, roles: string[] = ["owne
   return { id: "env_owner", role: "owner", name: "AISea Owner", roles };
 }
 
+const REPORT_LABELS: Record<string, string> = {
+  comprehensive: "综合形象报告",
+  hair: "发型发色专题",
+  makeup: "色彩与面部清爽度专题",
+  outfit: "穿搭配饰专题",
+  look: "场景 Look 专题",
+};
+
 function typePrompt(reportType: string) {
+  const sharedEnding = [
+    "雷区提醒：必须温和表达，用“谨慎尝试”“容易削弱协调感”，不能攻击外貌。",
+    "今日行动清单：给 3 个立刻可执行的小动作。",
+  ];
   const prompts: Record<string, string[]> = {
     comprehensive: [
-      "1. 风格人设与形象关键词：给出温和正向的一句话结论。",
-      "2. 发型推荐：真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替。",
-      "3. 发色推荐：真实头发质感色板，例如黑茶色、冷茶棕、摩卡棕、奶茶棕。",
-      "4. 个人色彩：推荐色盘与谨慎色盘，颜色名称要准确。",
-      "5. 妆容建议：底妆、眉形、眼妆、腮红、唇色。",
-      "6. 穿搭配饰：服装、鞋、包、首饰、发饰和 3 套 OOTD。",
-      "7. 场景 Look：日常、通勤/上学、拍照、聚会。",
-      "8. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
-      "9. 今日可执行的 3 个变美动作和小红书分享金句。",
+      "风格定位：先给出一句清晰、可分享的形象结论。",
+      "发型发色：给真实发型缩略图、长度、层次、打理方式和自然发色质感。",
+      "个人色彩：推荐色盘、谨慎色盘和适合上身的颜色名称。",
+      "面部优化：男性写眉形修整、皮肤清爽度、胡须/鬓角、眼镜框型；女性写底妆、眉形、眼妆、腮红、唇色。",
+      "穿搭配饰：男性写上衣、外套、裤装、鞋、包、腕表、眼镜、帽子；女性写服装、鞋包、首饰、发饰和 3 套 OOTD。",
+      "场景 Look：日常、通勤/上学、拍照、聚会，每个场景给具体单品和氛围。",
+      ...sharedEnding,
+      "分享金句：一句适合小红书封面的短句。",
     ],
     hair: [
-      "1. 脸部轮廓、发质状态、发量感、当前发型气质。",
-      "2. 推荐发型：真实缩略图，展示长度、刘海、卷度、层次。",
-      "3. 发色推荐：展示低饱和、自然过渡的发色质感。",
-      "4. 刘海 / 长度 / 卷度建议。",
-      "5. 谨慎尝试方向。",
-      "6. 理发师沟通关键词和今日专属造型灵感。",
+      "脸部轮廓、发质状态、发量感、当前发型气质。",
+      "推荐发型：真实缩略图，展示长度、刘海或额前区、卷度、层次和侧后区处理。",
+      "发色推荐：展示低饱和、自然过渡的发色质感；男性优先黑茶、自然黑、冷棕、摩卡棕。",
+      "打理方式：洗护、吹风方向、造型品和理发师沟通关键词。",
+      ...sharedEnding,
     ],
     makeup: [
-      "1. 个人色彩倾向：冷暖、明度、饱和度、对比度。",
-      "2. 推荐色盘：主色、辅助色、点缀色、中性色。",
-      "3. 妆容方向：底妆、眉形、眼妆、腮红、唇色。",
-      "4. 发色延展建议。",
-      "5. 谨慎尝试的妆色与雷区。",
-      "6. 今日可执行妆容步骤。",
+      "个人色彩倾向：冷暖、明度、饱和度、对比度。",
+      "推荐色盘：主色、辅助色、点缀色、中性色。",
+      "面部清爽度建议：男性写眉形修整、肤色均匀、控油、黑眼圈、胡须/鬓角、眼镜框型；女性写底妆、眉形、眼妆、腮红、唇色。",
+      "发色与服装颜色延展建议。",
+      ...sharedEnding,
     ],
     outfit: [
-      "1. 风格定位：结合照片与偏好给出一句话结论。",
-      "2. 服装推荐：上衣、外套、下装或连衣搭配。",
-      "3. 鞋包首饰：必须对应人物性别呈现，男性照片只输出男性或中性男性单品，禁止裙装、高跟鞋和口红类女性化内容。",
-      "4. 3 套 OOTD 灵感：日常、通勤、拍照或聚会。",
-      "5. 谨慎尝试：避免风格冲突和过度堆叠。",
-      "6. 今日穿搭清单和一句话搭配口诀。",
+      "风格定位：结合照片与偏好给出一句话结论。",
+      "服装推荐：男性只写上衣、外套、裤装、叠穿、版型和面料；女性可写上衣、外套、下装或连衣搭配。",
+      "配饰推荐：男性只写鞋、包、腕表、眼镜、帽子、腰带；女性可写鞋包、首饰、发饰。",
+      "3 套 OOTD 灵感：日常、通勤、拍照或聚会，必须和人物性别呈现一致。",
+      ...sharedEnding,
     ],
     look: [
-      "1. 日常 Look。",
-      "2. 通勤 / 上学 Look。",
-      "3. 拍照 Look。",
-      "4. 聚会 Look。",
-      "5. 场景对比表与今日可执行建议。",
-      "6. 适合保存的总结语。",
+      "日常 Look：给具体上装、下装、鞋和氛围关键词。",
+      "通勤 / 上学 Look：给整套组合和适用场景。",
+      "拍照 Look：给镜头友好的颜色、层次和姿态建议。",
+      "聚会 Look：给更有存在感但不过度的搭配。",
+      "场景对比表与今日可执行建议。",
+      "适合保存的总结语。",
     ],
   };
-  return (prompts[reportType] || prompts.comprehensive).join("\n");
+  return (prompts[reportType] || prompts.comprehensive).map((item, index) => `${index + 1}. ${item}`).join("\n");
+}
+
+function genderRoutingPrompt(persona: string, keywords: string) {
+  return `性别分流规则（最高优先级，必须严格执行）：
+1. 先观察用户上传照片的人物性别呈现，再决定内容体系。不要被前端传入的人设方向强行带偏。
+2. 如果照片呈现为男性或偏男性气质：
+   - 报告标题、人设和模块必须转译成男性表达，例如“清爽质感型”“韩系干净学长感”“松弛高级男生日常”“商务轻熟感”“日系盐系少年感”。
+   - 禁止出现或暗示：法式白月光、学姐、甜妹、公主、少女、腮红、口红、唇色、睫毛、眼影、妆容、发饰、耳饰、裙装、连衣裙、高跟鞋、女包、女性化自拍姿态。
+   - 可使用：发型层次、额前区、两侧鬓角、后颈线条、自然发色、眉形修整、皮肤清爽度、控油、胡须/鬓角、眼镜框型、T 恤、衬衫、夹克、针织、卫衣、西装外套、直筒裤、牛仔裤、休闲裤、球鞋、乐福鞋、双肩包、托特包、腕表、帽子。
+   - 如果前端人设是“${persona}”或关键词“${keywords}”偏女性，只能保留其中的抽象气质，例如清透=干净通透，温柔=亲和松弛，低饱和=高级克制，不能照抄女性化标题。
+3. 如果照片呈现为女性或偏女性气质：
+   - 可以输出发型、发色、个人色彩、妆容、穿搭、鞋包、首饰、发饰等女士形象建议。
+   - 禁止把女性用户写成男士型格报告，禁止胡须、鬓角、男士西装硬朗化等不匹配内容。
+4. 如果照片性别特征不清晰：
+   - 采用中性安全体系：发型、发色、个人色彩、眉形清爽度、基础护肤、简约穿搭、鞋包、眼镜、帽子；不出现强女性化或强男性化单品。
+5. 每个标题、分区标题、单品、示例图片都必须和识别出的性别呈现一致；一旦发现冲突，优先删除冲突内容。`;
+}
+
+function visualDesignPrompt(reportLabel: string) {
+  return `视觉设计要求：
+- 这不是普通模板拼贴，要做成有点击欲望的高质量中文视觉报告。第一屏必须像杂志封面/高端形象顾问诊断页，有清晰人物主视觉、强标题、风格结论和 3 个关键信息锚点。
+- 竖版 9:16，整体有层次：顶部主视觉区 35%，中部模块网格 50%，底部行动清单 15%。不要密密麻麻的小字，不要后台表格感。
+- 男性报告视觉：更克制高级，可用米白、炭黑、雾灰、橄榄绿、牛仔蓝、摩卡棕、银灰点缀；避免粉色可爱、爱心、蝴蝶结、花朵、闪闪少女风。
+- 女性报告视觉：可以温柔精致，但也要高级、有留白、有真实材质图，不要廉价粉色堆叠。
+- ${reportLabel} 必须有清晰中文大标题、模块编号、真实材质/单品缩略图和可读正文。所有中文必须正确、清楚、无乱码。`;
 }
 
 function promptFor(input: Json) {
   const reportType = String(input.report_type || "comprehensive");
-  const reportLabel = ({
-    comprehensive: "综合形象报告",
-    hair: "发型发色专题",
-    makeup: "色彩妆容专题",
-    outfit: "穿搭配饰专题",
-    look: "场景 Look 专题",
-  } as Record<string, string>)[reportType] || "综合形象报告";
-  const persona = String(input.style_persona || "轻法式白月光");
-  const keywords = String(input.style_keywords || "清透 / 温柔 / 低饱和 / 松弛感");
+  const reportLabel = REPORT_LABELS[reportType] || "综合形象报告";
+  const persona = String(input.style_persona || "系统智能风格");
+  const keywords = String(input.style_keywords || "干净 / 协调 / 有质感 / 适合本人");
   const style = String(input.style_preference || "系统自动推荐");
   const scene = String(input.scene_preference || "系统推荐");
   const change = String(input.change_level || "系统推荐");
@@ -140,23 +167,20 @@ function promptFor(input: Json) {
 
 输出一张完整报告长图，竖版 9:16，适合保存查看。画面中必须使用用户上传照片作为人物参考，不要套用固定女性模板。
 
-报告类型：${reportType}
+报告类型：${reportLabel}
 报告名称：${reportLabel}
-风格人设：${persona}
-关键词：${keywords}
+前端偏好人设（仅作气质参考，必须按照片性别转译）：${persona}
+前端关键词（仅作抽象气质参考）：${keywords}
 造型表达偏好：${style}
 目标场景：${scene}
 改变幅度：${change}
 
-人物识别硬规则：
-- 先根据上传照片识别人物的性别呈现、气质和五官轮廓，再决定输出内容。
-- 如果照片呈现为男性或偏男性气质，所有穿搭、鞋包、配饰、发型和妆容建议都必须是男性或中性男性风格。
-- 男性照片禁止出现裙装、高跟鞋、口红、浓重腮红、女性化连衣裙、夸张睫毛、擦边姿态等内容。
-- 如果性别特征不清晰，优先输出中性、克制、适合男性也适合女性的安全风格。
-- 必须尽量保留用户本人核心长相特征，不要把用户生成成别人的脸。
+${genderRoutingPrompt(persona, keywords)}
 
 必须包含：
 ${typePrompt(reportType)}
+
+${visualDesignPrompt(reportLabel)}
 
 文字必须是清晰简体中文。禁止乱码、假中文、随机符号、重复字、不可读小字。
 保留用户本人核心长相特征，不要过度美颜，不要攻击外貌，不要低俗或成人化。`;
@@ -377,7 +401,7 @@ async function handleApi(request: Request, env: Env, url: URL) {
       await db.prepare(`INSERT INTO reports
         (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_url, xhs_cover_image_url, created_at, completed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`)
-        .bind(reportId, String(input.client_id || ""), String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "轻法式白月光"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageUrl, coverImageUrl, now(), status === "completed" ? now() : null)
+        .bind(reportId, String(input.client_id || ""), String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageUrl, coverImageUrl, now(), status === "completed" ? now() : null)
         .run();
     }
     return json({ report_id: reportId, status, error, prompt, subject_gender: subjectGender, report_image_url: reportImageUrl, xhs_cover_image_url: coverImageUrl });
@@ -394,8 +418,8 @@ async function handleApi(request: Request, env: Env, url: URL) {
       report_id: reportId,
       cover_image_url: report?.xhs_cover_image_url || "",
       report_image_url: report?.report_image_url || "",
-      share_title: `AI说我是「${input.style_persona || "轻法式白月光"}」路线，这次感觉还挺准的？`,
-      copy_text: `AI说我是「${input.style_persona || "轻法式白月光"}」路线，这次感觉还挺准的。\n\n刚生成了一份 AI 个人形象报告，重点不是大改，是把整体氛围理顺。\n\n#AI形象报告 #变美思路 #普通女生变美`,
+      share_title: `AI 形象报告把我的风格路线理清楚了`,
+      copy_text: `刚生成了一份 AI 个人形象报告，重点不是大改，是把发型、色彩、面部状态、穿搭和场景感理顺。\n\n#AI形象报告 #形象提升 #发型建议 #穿搭参考`,
     });
   }
 

@@ -186,54 +186,54 @@ const BEAUTY_REPORT_ASSETS = {
 };
 
 const BEAUTY_REPORT = {
-  title: "韩系温柔学姐\n变美报告",
+  title: "干净质感\n形象报告",
   subtitle: "你的专属综合形象报告",
-  script: "Soft & Pretty",
-  tags: ["干净", "温柔", "上镜", "亲和力"],
-  quote: "清新自然的氛围感，一眼让人心动的学姐气质。",
+  script: "Clean & Sharp",
+  tags: ["干净", "利落", "上镜", "亲和力"],
+  quote: "清爽自然的氛围感，会让整体形象更耐看。",
   keywords: [
-    ["干净柔和的五官", "适合低饱和、轻妆感路线"],
+    ["干净协调的五官", "适合低饱和、轻负担路线"],
     ["明亮清澈的气质", "保留自然感，增加上镜度"],
     ["自然舒展的氛围", "发型和穿搭都要轻盈"],
-    ["亲和治愈的笑容", "用柔和色系放大优势"],
+    ["亲和自然的笑容", "用协调色系放大优势"],
   ],
   hairstyles: [
-    ["空气刘海", "自然减龄"],
-    ["八字刘海", "修饰脸型"],
-    ["层次中长发", "轻盈灵动"],
-    ["慵懒大波浪", "温柔氛围"],
-    ["半扎公主头", "学姐感满分"],
+    ["自然碎发", "修饰额前"],
+    ["纹理短发", "清爽利落"],
+    ["层次中发", "轻盈自然"],
+    ["微卷纹理", "增加氛围"],
+    ["侧分轮廓", "更显精神"],
   ],
   hairColors: ["黑茶色", "冷棕色", "奶茶棕", "亚麻棕", "焦糖棕", "蜜茶色"],
   makeup: [
-    ["底妆", "清透自然\n伪素颜感"],
-    ["眉毛", "自然眉形\n柔和清晰"],
-    ["眼妆", "淡妆提亮\n卧蚕加分"],
-    ["腮红", "白里透红\n元气自然"],
-    ["唇色", "温柔豆沙\n奶茶色系"],
+    ["肤色", "干净均匀\n自然通透"],
+    ["眉形", "清晰自然\n轮廓利落"],
+    ["眼周", "减弱疲惫\n提升精神"],
+    ["面中", "气色自然\n不过度修饰"],
+    ["唇部", "健康清爽\n保持干净"],
   ],
   outfits: [
-    ["校园清新感", BEAUTY_REPORT_ASSETS.outfitCampus, "清爽干净，青春减龄"],
-    ["日常韩系感", BEAUTY_REPORT_ASSETS.outfitDaily, "温柔简约，舒适耐看"],
+    ["日常清爽感", BEAUTY_REPORT_ASSETS.outfitCampus, "清爽干净，轻松耐看"],
+    ["通勤简约感", BEAUTY_REPORT_ASSETS.outfitDaily, "简约利落，舒适有质感"],
     ["拍照氛围感", BEAUTY_REPORT_ASSETS.outfitPhoto, "层次感强，氛围出片"],
   ],
   accessories: [
-    ["耳饰", "小巧精致"],
-    ["包包", "简约百搭"],
-    ["发饰", "温柔加分"],
+    ["眼镜", "修饰轮廓"],
+    ["包袋", "简约百搭"],
+    ["腕表", "质感加分"],
     ["眼镜", "文艺减龄"],
   ],
   avoidItems: [
-    ["妆容过浓", "显老显厚重"],
+    ["修饰过重", "容易显厚重"],
     ["高饱和色", "易显土气"],
     ["配饰繁杂", "显凌乱"],
     ["发型扁塌油腻", "缺乏氛围"],
     ["风格杂乱", "缺乏统一"],
   ],
   checklist: [
-    ["发型换一换", "试试空气刘海+层次中长发"],
-    ["妆容轻透化", "底妆清透+淡妆提亮"],
-    ["穿搭照着搭", "温柔色系+简约单品"],
+    ["发型换一换", "试试自然层次+清爽轮廓"],
+    ["面部清爽化", "肤色干净+眉形利落"],
+    ["穿搭照着搭", "低饱和色+简约单品"],
   ],
 } as const;
 
@@ -251,7 +251,7 @@ const CONFIRM_MODULES = [
   { key: "hair", label: "发型", icon: CONFIRM_GENERATE_ASSETS.hair },
   { key: "hairColor", label: "发色", icon: CONFIRM_GENERATE_ASSETS.hairColor },
   { key: "palette", label: "色彩", icon: CONFIRM_GENERATE_ASSETS.palette },
-  { key: "makeup", label: "妆容", icon: CONFIRM_GENERATE_ASSETS.makeup },
+  { key: "makeup", label: "面部", icon: CONFIRM_GENERATE_ASSETS.makeup },
   { key: "outfit", label: "穿搭", icon: CONFIRM_GENERATE_ASSETS.outfit },
   { key: "accessory", label: "配饰", icon: CONFIRM_GENERATE_ASSETS.accessory },
   { key: "scene", label: "场景建议", icon: CONFIRM_GENERATE_ASSETS.scene },
@@ -444,36 +444,36 @@ function buildPrompt(type: ReportType, personaId: PersonaId, prefs: AppState["pr
   const persona = PERSONAS[personaId];
   const moduleLines = type.id === "comprehensive"
     ? [
-        "1. 风格人设与形象关键词：给出温和正向的一句话结论。",
-        "2. 发型推荐：真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替。",
-        "3. 发色推荐：真实头发质感色板，例如黑茶色、冷茶棕、摩卡棕、奶茶棕。",
-        "4. 个人色彩：推荐色盘与谨慎色盘，颜色名称要准确。",
-        "5. 妆容建议：底妆、眉形、眼妆、腮红、唇色。",
-        "6. 穿搭配饰：服装、鞋、包、首饰、发饰和 3 套 OOTD。",
-        "7. 场景 Look：日常、通勤/上学、拍照、聚会。",
-        "8. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
-        "9. 今日可执行的 3 个变美动作和小红书分享金句。",
+        "1. 风格定位：先给出一句清晰、可分享的形象结论。",
+        "2. 发型发色：给真实发型缩略图、长度、层次、打理方式和自然发色质感。",
+        "3. 个人色彩：推荐色盘、谨慎色盘和适合上身的颜色名称。",
+        "4. 面部优化：男性写眉形修整、皮肤清爽度、胡须/鬓角、眼镜框型；女性写底妆、眉形、眼妆、腮红、唇色。",
+        "5. 穿搭配饰：男性写上衣、外套、裤装、鞋、包、腕表、眼镜、帽子；女性写服装、鞋包、首饰、发饰和 3 套 OOTD。",
+        "6. 场景 Look：日常、通勤/上学、拍照、聚会，每个场景给具体单品和氛围。",
+        "7. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
+        "8. 今日可执行的 3 个变美动作和小红书分享金句。",
       ]
-    : type.modules.map((item, index) => `${index + 1}. ${item}：围绕「${type.name}」展开，主题准确，不混入无关模块。`);
+    : type.modules.map((item, index) => `${index + 1}. ${item}：围绕「${type.name}」展开，主题准确，并按照片性别呈现选择男性、女性或中性内容。`);
   return `你是一名专业的 AI 形象报告设计师，请基于用户上传的照片，生成一张高信息密度、适合保存和分享到小红书/朋友圈的中文个人形象报告长图。
 
 【输出要求】
 - 报告图：1080×1920 或更长的竖版中文长图，文字必须清晰可读。
-- 小红书封面图：1080×1440，3:4 竖版，标题大、留白足、适合作为笔记首图。
 - 所有文字必须为简体中文；禁止乱码、假中文、随机符号、重复字、不可读小字。
 
 【用户照片要求】
 - 以用户上传照片为参考，保留核心长相特征和自然气质。
 - 不要过度美颜，不要大幅改变五官，不要夸张失真。
 - 不要低俗、暴露、成人化或擦边姿势。
-- 如果照片呈现为男性或偏男性气质，所有穿搭、鞋包、配饰、造型示例都必须是男性或中性男性风格，禁止裙装、高跟鞋、口红、睫毛膏、夸张腮红、女性化连衣裙等内容。
-- 如果照片性别特征不清晰，优先采用中性、克制、适合男性也适合女性的安全风格。
+- 先判断照片性别呈现，再决定内容体系。不要被前端人设强行带偏。
+- 男性照片必须转译成男士形象报告，禁止法式白月光、学姐、甜妹、公主、少女、腮红、口红、唇色、睫毛、眼影、妆容、发饰、裙装、连衣裙、高跟鞋、女包等女性化内容。
+- 女性照片可以输出女士发型、发色、个人色彩、妆容、穿搭、鞋包、首饰、发饰等建议，禁止套用男士胡须/鬓角/硬朗型格内容。
+- 性别不清晰时采用中性安全体系：发型、发色、个人色彩、眉形清爽度、基础护肤、简约穿搭、鞋包、眼镜、帽子。
 
 【本次报告】
 - 报告类型：${type.name}
-- 人设方向：${persona.title}
-- 关键词：${persona.keywords.join(" / ")}
-- 视觉基调：${persona.tone}
+- 前端偏好人设（仅作抽象气质参考，必须按照片性别转译）：${persona.title}
+- 前端关键词（仅作抽象气质参考）：${persona.keywords.join(" / ")}
+- 视觉基调参考：${persona.tone}
 - 造型表达偏好：${prefs.stylePreferences.join(" / ")}
 - 目标场景：${prefs.targetScenes.join(" / ")}
 - 改变幅度：${prefs.changeIntensity}
@@ -487,10 +487,10 @@ ${moduleLines.join("\n")}
 - 使用“建议”“更适合”“可优先尝试”“谨慎尝试”等表达。
 
 【排版要求】
-- 顶部有醒目的标题区和人物主视觉。
-- 中部使用多个模块卡片，信息密度高但不拥挤。
-- 底部包含今日行动清单、温馨提示和分享金句。
-- 整体像“小红书种草风 + 高级形象顾问报告 + 杂志信息图”，不要像后台表格。`;
+- 第一屏必须像杂志封面/高端形象顾问诊断页，有清晰人物主视觉、强标题、风格结论和 3 个关键信息锚点。
+- 中部使用多个模块卡片，信息密度高但不拥挤；底部包含行动清单、温馨提示和分享金句。
+- 男性报告视觉更克制高级，可用米白、炭黑、雾灰、橄榄绿、牛仔蓝、摩卡棕、银灰点缀，避免粉色可爱、爱心、蝴蝶结、花朵、闪闪少女风。
+- 女性报告可以温柔精致，但也要高级、有留白、有真实材质图，不要廉价粉色堆叠。`;
 }
 
 function xhsCopy(type: ReportType, personaId: PersonaId, subjectGender: UserReport["subjectGender"] = "unknown") {
@@ -517,7 +517,7 @@ function xhsCopy(type: ReportType, personaId: PersonaId, subjectGender: UserRepo
 
 保存下来，慢慢照着改就行。
 
-#AI形象报告 #变美思路 #${type.name.replace("专题", "")} #普通女生变美`;
+#AI形象报告 #形象提升 #${type.name.replace("专题", "")} #发型穿搭参考`;
   }
   return `AI 说我是「${persona.title}」路线，这次感觉还挺准的。
 
@@ -525,12 +525,12 @@ function xhsCopy(type: ReportType, personaId: PersonaId, subjectGender: UserRepo
 我最想先参考的 4 点是：
 1. 发型更适合轻层次和清爽轮廓
 2. 发色更适合低饱和、自然过渡
-3. 妆容重点放在清透和提气色
+3. 面部状态重点放在干净和提气色
 4. 穿搭多选更轻、更干净的单品
 
 先保存下来，照着慢慢试。
 
-#AI形象报告 #变美思路 #个人风格定位 #发型推荐 #普通女生变美`;
+#AI形象报告 #形象提升 #个人风格定位 #发型推荐 #穿搭参考`;
 }
 
 const PHOTO_TIPS = {
@@ -703,19 +703,19 @@ function App() {
   }
 
   useEffect(() => {
-    if (state.route !== "progress") return;
+    if (state.route !== "progress" || !state.isGenerating) return;
     const generationId = generationSeqRef.current;
     const controller = new AbortController();
-    const steps = [18, 31, 48, 63, 78, 91, 100];
+    const steps = [18, 31, 48, 63, 78, 91, 94];
     let index = Math.max(0, steps.findIndex((step) => step > state.progress));
     if (index < 0) index = steps.length - 1;
     const timer = window.setInterval(() => {
       setState((s) => {
-        const next = steps[index] || 100;
+        const next = steps[index] || 94;
         index += 1;
-        return { ...s, progress: next };
+        return { ...s, progress: Math.min(next, 94) };
       });
-    }, 1300);
+    }, 2500);
 
     const run = async () => {
       const type = REPORT_TYPES.find((item) => item.id === state.reportType) || REPORT_TYPES[0];
@@ -797,7 +797,7 @@ function App() {
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [state.route]);
+  }, [state.route, state.isGenerating]);
 
   function updateAdmin(admin: AdminState) {
     setState((s) => ({ ...s, admin }));
@@ -982,7 +982,7 @@ function HomeReportPreview({ type, locked }: { type: ReportType; locked?: boolea
   const captionMap: Record<ReportTypeId, string> = {
     comprehensive: "形象定位 · 风格建议",
     hair: "发型建议 · 发色推荐",
-    makeup: "色彩分析 · 妆容建议",
+    makeup: "色彩分析 · 面部建议",
     outfit: "风格定位 · 穿搭方案",
     look: "场景穿搭 · 妆发建议",
   };
@@ -1050,14 +1050,14 @@ function SuccessPage({ state, nav }: { state: AppState; nav: (r: Route) => void 
     ["发型分析", FULL_CARD_ASSETS.hairAnalysis],
     ["发色建议", FULL_CARD_ASSETS.hairColor],
     ["色彩诊断", FULL_CARD_ASSETS.colorDiagnosis],
-    ["妆容建议", FULL_CARD_ASSETS.makeup],
+    ["面部建议", FULL_CARD_ASSETS.makeup],
     ["穿搭方案", FULL_CARD_ASSETS.outfit],
     ["配饰推荐", FULL_CARD_ASSETS.accessory],
     ["场景建议", FULL_CARD_ASSETS.scene],
   ];
   const topics = [
     ["发型改造专题", "找到最适合你的发型", FULL_CARD_ASSETS.hairAnalysis],
-    ["色彩妆容专题", "找到你的专属色彩妆容", FULL_CARD_ASSETS.colorDiagnosis],
+    ["色彩面部专题", "找到你的专属色彩与面部清爽方向", FULL_CARD_ASSETS.colorDiagnosis],
     ["穿搭配饰专题", "穿出风格，提升气质", FULL_CARD_ASSETS.outfit],
     ["场景 Look 专题", "不同场景，轻松变美", FULL_CARD_ASSETS.scene],
   ];
@@ -1201,7 +1201,7 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
     tint: string;
   }> = [
     { id: "hair", title: "发型发色专题", subtitle: "找到最适合你的发型", image: CHOOSE_REPORT_ASSETS.hair, border: "#ffc8d8", tint: "#fff3f7" },
-    { id: "makeup", title: "色彩妆容专题", subtitle: "找到你的专属色彩妆容", image: CHOOSE_REPORT_ASSETS.makeup, border: "#d8c6ff", tint: "#f8f5ff" },
+    { id: "makeup", title: "色彩面部专题", subtitle: "找到你的专属色彩与面部清爽方向", image: CHOOSE_REPORT_ASSETS.makeup, border: "#d8c6ff", tint: "#f8f5ff" },
     { id: "outfit", title: "穿搭配饰专题", subtitle: "穿出风格，提升气质", image: CHOOSE_REPORT_ASSETS.outfit, border: "#ffd4b6", tint: "#fff7ef" },
     { id: "look", title: "场景 Look 专题", subtitle: "不同场景，轻松变美", image: CHOOSE_REPORT_ASSETS.look, border: "#cbd7ff", tint: "#f5f8ff" },
   ];
@@ -1230,9 +1230,9 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
           <div className="choose-main-copy">
             <div className="choose-eyebrow"><Sparkles />全案主推</div>
             <h2>综合形象报告 <span>先看总方向</span></h2>
-            <p>先把发型、色彩、妆容、穿搭和场景感放到一张图里，再决定后面要不要补专题。</p>
+            <p>先把发型、色彩、面部状态、穿搭和场景感放到一张图里，再决定后面要不要补专题。</p>
             <ul>
-              {["先看整体风格定位", "再拆发型发色和妆容", "顺手看穿搭与场景建议", "适合保存下来反复对照", "一张图先理清方向"].map((item) => (
+              {["先看整体风格定位", "再拆发型发色和面部状态", "顺手看穿搭与场景建议", "适合保存下来反复对照", "一张图先理清方向"].map((item) => (
                 <li key={item}><Check />{item}</li>
               ))}
             </ul>
@@ -2037,13 +2037,13 @@ function ReportCanvas({ id, type, persona, className = "" }: { id: string; type:
         <SectionCard index={1} title="发型推荐" className="span-wide"><HairstyleSection /></SectionCard>
         <SectionCard index={2} title="发色推荐"><HairColorSection /></SectionCard>
         <SectionCard index={3} title="色彩分析"><ColorAnalysisSection /></SectionCard>
-        <SectionCard index={4} title="妆容建议" className="span-wide"><MakeupSection /></SectionCard>
+        <SectionCard index={4} title="面部建议" className="span-wide"><MakeupSection /></SectionCard>
         <SectionCard index={5} title="穿搭风格建议" className="span-wide"><OutfitSection /></SectionCard>
         <SectionCard index={6} title="配饰推荐"><AccessorySection /></SectionCard>
         <SectionCard index={7} title="氛围雷区（避免这些会减分哦）" className="span-wide"><AvoidSection /></SectionCard>
         <SectionCard index={8} title="一键抄作业清单"><ChecklistSection /></SectionCard>
       </div>
-      <footer className="keyword-summary"><Heart size={20} /><b>你的专属风格关键词：温柔学姐 ｜ 清新自然 ｜ 气质治愈</b><span>好看又舒服，就是你的风格！</span><Sparkles size={22} /></footer>
+      <footer className="keyword-summary"><Heart size={20} /><b>你的专属风格关键词：干净质感 ｜ 清新自然 ｜ 协调耐看</b><span>舒服又有辨识度，就是你的风格。</span><Sparkles size={22} /></footer>
     </article>
   );
 }
@@ -2061,17 +2061,17 @@ function HairstyleSection() {
 }
 
 function HairColorSection() {
-  return <div className="haircolor-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.hairColors} alt="发色推荐色卡" loading="lazy" decoding="async" /><div className="haircolor-labels">{BEAUTY_REPORT.hairColors.map((name) => <span key={name}>{name}</span>)}</div><p>温柔显白，提亮气色</p></div>;
+  return <div className="haircolor-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.hairColors} alt="发色推荐色卡" loading="lazy" decoding="async" /><div className="haircolor-labels">{BEAUTY_REPORT.hairColors.map((name) => <span key={name}>{name}</span>)}</div><p>自然提亮，更显干净质感</p></div>;
 }
 
 function ColorAnalysisSection() {
   const recommended = ["#f7b3a5", "#f9d4c9", "#f8e4d6", "#fff2df", "#e6e6be"];
   const avoid = ["#f39a8d", "#f3aaa8", "#bd7c85", "#a86f68", "#8c3f3d"];
-  return <div className="color-analysis-section"><article><h4>推荐色盘 <small>柔和明亮</small></h4><div className="color-chip-row">{recommended.map((color) => <i key={color} style={{ background: color }} />)}</div><p>适合温柔清新的你，提亮肤色，气质加分。</p></article><article><h4>避免色盘 <small>对比过强</small></h4><div className="color-chip-row">{avoid.map((color) => <i key={color} style={{ background: color }} />)}</div><p>高饱和与深暗色容易沉闷，降低亲和力。</p></article></div>;
+  return <div className="color-analysis-section"><article><h4>推荐色盘 <small>柔和明亮</small></h4><div className="color-chip-row">{recommended.map((color) => <i key={color} style={{ background: color }} />)}</div><p>适合干净清爽的路线，提亮肤色，气质加分。</p></article><article><h4>避免色盘 <small>对比过强</small></h4><div className="color-chip-row">{avoid.map((color) => <i key={color} style={{ background: color }} />)}</div><p>高饱和与深暗色容易沉闷，降低亲和力。</p></article></div>;
 }
 
 function MakeupSection() {
-  return <div className="makeup-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.makeup} alt="妆容建议拼图" loading="lazy" decoding="async" /><div className="makeup-labels">{BEAUTY_REPORT.makeup.map(([title, subtitle]) => <span key={title}><b>{title}</b><small>{subtitle}</small></span>)}</div></div>;
+  return <div className="makeup-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.makeup} alt="面部建议拼图" loading="lazy" decoding="async" /><div className="makeup-labels">{BEAUTY_REPORT.makeup.map(([title, subtitle]) => <span key={title}><b>{title}</b><small>{subtitle}</small></span>)}</div></div>;
 }
 
 function OutfitSection() {
