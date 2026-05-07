@@ -6970,7 +6970,6 @@ body {
   min-height: 0;
   padding: 18px 14px 14px;
   border-radius: 24px;
-  border: 0;
   background: #fff;
 }
 
@@ -6986,18 +6985,21 @@ body {
 
 .choose-report-page .choose-topic-image {
   width: 100%;
-  aspect-ratio: 1484 / 1060;
-  border-radius: 0;
-  overflow: visible;
+  aspect-ratio: 1345 / 837;
+  border-radius: 22px;
+  overflow: hidden;
   background: transparent;
   border: 0;
 }
 
 .choose-report-page .choose-topic-image img {
-  width: 100%;
+  width: 110.4%;
   height: auto;
+  max-width: none;
   border-radius: 0;
   object-fit: contain;
+  transform: translate(-4.2%, -9.2%);
+  transform-origin: top left;
 }
 
 .choose-report-page .choose-topic-card span {
