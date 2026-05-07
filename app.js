@@ -54,6 +54,27 @@ const PRODUCTS = [
   },
 ];
 
+const DEMO_COUPON_PRODUCTS = {
+  AISEA19: "single",
+  AISEA49: "triple",
+  AISEA99: "full",
+  S19K7M2A: "single",
+  S19P8Q4B: "single",
+  S19R6T5C: "single",
+  S19V3W9D: "single",
+  S19X2Y7E: "single",
+  T49K7M2A: "triple",
+  T49P8Q4B: "triple",
+  T49R6T5C: "triple",
+  T49V3W9D: "triple",
+  T49X2Y7E: "triple",
+  F99K7M2A: "full",
+  F99P8Q4B: "full",
+  F99R6T5C: "full",
+  F99V3W9D: "full",
+  F99X2Y7E: "full",
+};
+
 const REPORT_TYPES = [
   {
     id: "comprehensive",
@@ -356,12 +377,12 @@ function renderHome() {
       <section class="section">
         <div class="section-head">
           <div>
-            <h2 class="section-title">热门报告预览</h2>
+            <h2 class="section-title">形象报告预览</h2>
             <p class="section-desc">点击卡片查看样例。综合报告仅全案探索卡可用。</p>
           </div>
           <button class="btn btn-ghost" data-preview="comprehensive">看看报告长什么样</button>
         </div>
-        <div class="grid grid-5">
+        <div class="preview-scroll">
           ${REPORT_TYPES.map((type) => `
             <button class="card preview-card" data-preview="${type.id}">
               <div class="preview-media"><img src="${type.icon}" alt="${type.name}预览" /></div>
@@ -407,11 +428,6 @@ function renderHome() {
           <div class="step"><div class="step-num">2</div><strong>输入兑换码</strong><p class="section-desc">回到 H5 兑换权益，状态清楚可继续使用。</p></div>
           <div class="step"><div class="step-num">3</div><strong>上传照片生成报告</strong><p class="section-desc">选择报告类型、偏好和授权后开始生成。</p></div>
         </div>
-      </section>
-
-      <section class="section card pad">
-        <h2 class="section-title">一键准备小红书分享</h2>
-        <p class="section-desc">结果页会准备小红书封面图、完整报告图和分享文案。用户保存图片、复制文案后自行打开小红书确认发布。</p>
       </section>
 
       <p class="footer-note">隐私说明：上传照片仅用于生成专属形象分析报告。静态演示版不会上传文件到服务器。</p>
@@ -464,7 +480,7 @@ async function redeemFromInput() {
     toast("请输入兑换码");
     return;
   }
-  let product = PRODUCTS.find((item) => item.code === code);
+  let product = PRODUCTS.find((item) => item.code === code || item.id === DEMO_COUPON_PRODUCTS[code]);
   if (!product) {
     toast("兑换码无效，请检查后重新输入");
     return;

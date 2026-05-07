@@ -322,6 +322,25 @@ a {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.preview-scroll {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.preview-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.preview-scroll .preview-card {
+  flex: 0 0 calc((100% - 28px) / 3);
+  scroll-snap-align: start;
+}
+
 .card {
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid var(--line);
@@ -1014,6 +1033,10 @@ a {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .preview-scroll .preview-card {
+    flex-basis: calc((100% - 14px) / 2);
+  }
+
   .option-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1078,6 +1101,10 @@ a {
   .steps,
   .tip-grid {
     grid-template-columns: 1fr;
+  }
+
+  .preview-scroll .preview-card {
+    flex-basis: calc((100% - 28px) / 3);
   }
 
   .coupon-panel {

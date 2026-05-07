@@ -289,6 +289,26 @@ interface AppState {
 const LS_KEY = "aisea-react-state-v1";
 const ADMIN_PASSWORD = "AISea@2026";
 const couponAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const DEMO_COUPON_PRODUCTS: Record<string, ProductId> = {
+  AISEA19: "single",
+  AISEA49: "triple",
+  AISEA99: "full",
+  S19K7M2A: "single",
+  S19P8Q4B: "single",
+  S19R6T5C: "single",
+  S19V3W9D: "single",
+  S19X2Y7E: "single",
+  T49K7M2A: "triple",
+  T49P8Q4B: "triple",
+  T49R6T5C: "triple",
+  T49V3W9D: "triple",
+  T49X2Y7E: "triple",
+  F99K7M2A: "full",
+  F99P8Q4B: "full",
+  F99R6T5C: "full",
+  F99V3W9D: "full",
+  F99X2Y7E: "full",
+};
 const DEFAULT_PREFERENCES: PreferenceState = {
   stylePreferences: ["auto", "gentle"],
   targetScenes: ["daily", "photo"],
@@ -600,6 +620,7 @@ function App() {
   };
   const products = [...state.admin.products].filter((p) => p.enabled).sort((a, b) => a.sort - b.sort);
   const reportType = REPORT_TYPES.find((item) => item.id === state.reportType) || REPORT_TYPES[0];
+  const showComprehensiveReport = Boolean(state.product?.rights.comprehensive || state.rights.comprehensive > 0);
 
   function redeem(codeInput: string) {
     const code = codeInput.trim().toUpperCase();
@@ -615,6 +636,7 @@ function App() {
       ...s,
       product,
       rights: { ...product.rights },
+      reportType: product.rights.comprehensive > 0 ? "comprehensive" : "hair",
       reports: [],
       route: "success",
       admin: { ...s.admin, coupons: updatedCoupons, auditLogs: audit(s.admin.auditLogs, "system", "coupon.redeem", `${code} 兑换 ${product.name}`) },
@@ -623,8 +645,7 @@ function App() {
   }
 
   function demoCoupon(code: string): Coupon | undefined {
-    const map: Record<string, ProductId> = { AISEA19: "single", AISEA49: "triple", AISEA99: "full" };
-    return map[code] ? { code, productId: map[code], platform: "演示", status: "unused", createdAt: now(), expiresAt: addDays(new Date(), 30) } : undefined;
+    return DEMO_COUPON_PRODUCTS[code] ? { code, productId: DEMO_COUPON_PRODUCTS[code], platform: "演示", status: "unused", createdAt: now(), expiresAt: addDays(new Date(), 30) } : undefined;
   }
 
   function chooseReport(id: ReportTypeId) {
@@ -686,12 +707,12 @@ function App() {
     switch (state.route) {
       case "purchase": return <PurchasePage products={products} nav={nav} showToast={showToast} />;
       case "success": return <SuccessPage state={state} nav={nav} />;
-      case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
+      case "select": return <SelectPage rights={state.rights} showComprehensiveReport={showComprehensiveReport} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} />;
       case "progress": return <ProgressPage progress={state.progress} nav={nav} />;
-      case "result": return <ResultPage state={state} nav={nav} showToast={showToast} />;
+      case "result": return <ResultPage state={state} showComprehensiveReport={showComprehensiveReport} nav={nav} showToast={showToast} />;
       case "admin": return <AdminPage state={state} setState={setState} updateAdmin={updateAdmin} showToast={showToast} />;
       default: return <HomePage products={products} state={state} nav={nav} redeem={redeem} showToast={showToast} />;
     }
@@ -785,7 +806,7 @@ function HomePage({ products, state, nav, redeem, showToast }: { products: Produ
 
       <section className="home-panel preview-panel">
         <div className="home-section-head">
-          <h2>热门报告预览</h2>
+          <h2>形象报告预览</h2>
           <button onClick={() => nav("select")}>看看报告长什么样 <img src={HOME_ASSETS.arrowRight} alt="" /></button>
         </div>
         <div className="home-preview-list">
@@ -838,18 +859,6 @@ function HomePage({ products, state, nav, redeem, showToast }: { products: Produ
         </div>
       </section>
 
-      <footer className="home-share-footer">
-        <div className="home-share-heart"><img src={HOME_ASSETS.heart} alt="" /></div>
-        <div className="home-share-text">
-          <strong>报告支持一键分享至 小红书 / 微信 / 朋友圈</strong>
-          <p>记录变美过程，收获更多赞美与灵感</p>
-        </div>
-        <div className="home-share-icons">
-          <img src={HOME_ASSETS.xiaohongshu} alt="小红书" />
-          <img src={HOME_ASSETS.wechat} alt="微信" />
-          <img src={HOME_ASSETS.moments} alt="朋友圈" />
-        </div>
-      </footer>
     </main>
   );
 }
@@ -1074,15 +1083,15 @@ function SuccessPage({ state, nav }: { state: AppState; nav: (r: Route) => void 
   );
 }
 
-function RightsPills({ rights }: { rights: Rights }) {
-  return <div className="rights-pills"><span><ReceiptText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span><span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div>;
+function RightsPills({ rights, showComprehensiveReport = true }: { rights: Rights; showComprehensiveReport?: boolean }) {
+  return <div className="rights-pills">{showComprehensiveReport && <span><ReceiptText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}<span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div>;
 }
 
 function SuccessSectionTitle({ title }: { title: string }) {
   return <div className="success-section-title"><img src={FULL_CARD_ASSETS.sparkleDivider} alt="" /><span>{title}</span><img src={FULL_CARD_ASSETS.sparkleDivider} alt="" /></div>;
 }
 
-function SelectPage({ rights, chooseReport, nav }: { rights: Rights; chooseReport: (id: ReportTypeId) => void; nav: (r: Route) => void }) {
+function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { rights: Rights; showComprehensiveReport: boolean; chooseReport: (id: ReportTypeId) => void; nav: (r: Route) => void }) {
   const topics: Array<{
     id: ReportTypeId;
     title: string;
@@ -1107,27 +1116,29 @@ function SelectPage({ rights, chooseReport, nav }: { rights: Rights; chooseRepor
       </header>
 
       <section className="choose-quota" aria-label="剩余报告次数">
-        <span><ReceiptText />综合报告剩余 <b>{rights.comprehensive}</b></span>
+        {showComprehensiveReport && <span><ReceiptText />综合报告剩余 <b>{rights.comprehensive}</b></span>}
         <span><KeyRound />专题报告剩余 <b>{rights.topic}</b></span>
       </section>
 
-      <section className={`choose-main-card ${rights.comprehensive > 0 ? "" : "is-disabled"}`}>
-        <div className="choose-main-copy">
-          <div className="choose-eyebrow"><Sparkles />全案主推</div>
-          <h2>综合形象报告 <span>全案专享</span></h2>
-          <p>全方位解析你的个人形象</p>
-          <ul>
-            {["发型发色分析", "个人色彩搭配", "妆容定制建议", "穿搭风格方案", "场景Look推荐"].map((item) => (
-              <li key={item}><Check />{item}</li>
-            ))}
-          </ul>
-          <button className="choose-primary-btn" onClick={() => chooseReport("comprehensive")}>生成综合形象报告 ✦</button>
-        </div>
-        <div className="choose-main-visual">
-          <img className="choose-badge" src={CHOOSE_REPORT_ASSETS.badge} alt="全案专享" />
-          <img className="choose-preview" src={CHOOSE_REPORT_ASSETS.comprehensivePreview} alt="综合形象报告预览" />
-        </div>
-      </section>
+      {showComprehensiveReport && (
+        <section className={`choose-main-card ${rights.comprehensive > 0 ? "" : "is-disabled"}`}>
+          <div className="choose-main-copy">
+            <div className="choose-eyebrow"><Sparkles />全案主推</div>
+            <h2>综合形象报告 <span>全案专享</span></h2>
+            <p>全方位解析你的个人形象</p>
+            <ul>
+              {["发型发色分析", "个人色彩搭配", "妆容定制建议", "穿搭风格方案", "场景Look推荐"].map((item) => (
+                <li key={item}><Check />{item}</li>
+              ))}
+            </ul>
+            <button className="choose-primary-btn" onClick={() => chooseReport("comprehensive")}>生成综合形象报告 ✦</button>
+          </div>
+          <div className="choose-main-visual">
+            <img className="choose-badge" src={CHOOSE_REPORT_ASSETS.badge} alt="全案专享" />
+            <img className="choose-preview" src={CHOOSE_REPORT_ASSETS.comprehensivePreview} alt="综合形象报告预览" />
+          </div>
+        </section>
+      )}
 
       <section className="choose-topic-grid" aria-label="专题报告">
         {topics.map((topic) => (
@@ -1842,21 +1853,21 @@ function useAnimatedNumber(target: number, duration = 700) {
   return value;
 }
 
-function ResultPage({ state, nav, showToast }: { state: AppState; nav: (r: Route) => void; showToast: (t: string) => void }) {
+function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state: AppState; showComprehensiveReport: boolean; nav: (r: Route) => void; showToast: (t: string) => void }) {
   const report = state.reports[0];
   const [shareOpen, setShareOpen] = useState(false);
   if (!report) return <Empty title="还没有生成报告" text="请先选择报告类型并完成生成。" action="选择报告" onClick={() => nav("select")} />;
   const type = REPORT_TYPES.find((item) => item.id === report.type)!;
   const persona = PERSONAS[report.persona];
-  return <main className="result-page"><ResultNavbar nav={nav} onShare={() => setShareOpen(true)} /><ReportCanvas id="report-card" type={type} persona={persona} /><ResultActionBar rights={state.rights} onDownload={() => downloadNode("report-card", "aisea-report.png", showToast)} onGenerate={() => nav("select")} onShare={() => setShareOpen(true)} />{shareOpen && <ShareSheet report={report} type={type} photo={state.photoUrl} close={() => setShareOpen(false)} showToast={showToast} />}</main>;
+  return <main className="result-page"><ResultNavbar nav={nav} onShare={() => setShareOpen(true)} /><ReportCanvas id="report-card" type={type} persona={persona} /><ResultActionBar rights={state.rights} showComprehensiveReport={showComprehensiveReport} onDownload={() => downloadNode("report-card", "aisea-report.png", showToast)} onGenerate={() => nav("select")} onShare={() => setShareOpen(true)} />{shareOpen && <ShareSheet report={report} type={type} photo={state.photoUrl} close={() => setShareOpen(false)} showToast={showToast} />}</main>;
 }
 
 function ResultNavbar({ nav, onShare }: { nav: (r: Route) => void; onShare: () => void }) {
   return <header className="result-navbar"><button className="result-nav-btn" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><h1>查看结果</h1><button className="result-nav-btn" onClick={onShare} aria-label="分享报告"><Share2 /></button></header>;
 }
 
-function ResultActionBar({ rights, onDownload, onGenerate, onShare }: { rights: Rights; onDownload: () => void; onGenerate: () => void; onShare: () => void }) {
-  return <footer className="result-bottom-bar"><div className="result-rights"><span><FileText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span><span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div><div className="result-primary-actions"><button className="result-download-btn" onClick={onDownload}><Download /><span>下载完整报告<small>高清大图 保存永久</small></span></button><button className="result-generate-btn" onClick={onGenerate}><PackagePlus /><span>继续生成专题报告<small>深度解锁更多变美方案</small></span></button></div><button className="result-share-btn" onClick={onShare}><Heart /><span className="result-share-copy"><b>分享你的变美报告</b><small>记录美好蜕变，收获更多赞美与灵感</small></span><span className="result-share-channels"><i>小红书</i><i>微信</i><i>朋友圈</i></span></button></footer>;
+function ResultActionBar({ rights, showComprehensiveReport, onDownload, onGenerate, onShare }: { rights: Rights; showComprehensiveReport: boolean; onDownload: () => void; onGenerate: () => void; onShare: () => void }) {
+  return <footer className="result-bottom-bar"><div className="result-rights">{showComprehensiveReport && <span><FileText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}<span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div><div className="result-primary-actions"><button className="result-download-btn" onClick={onDownload}><Download /><span>下载完整报告<small>高清大图 保存永久</small></span></button><button className="result-generate-btn" onClick={onGenerate}><PackagePlus /><span>继续生成专题报告<small>深度解锁更多变美方案</small></span></button></div><button className="result-share-btn" onClick={onShare}><Heart /><span className="result-share-copy"><b>分享你的变美报告</b><small>记录美好蜕变，收获更多赞美与灵感</small></span><span className="result-share-channels"><i>小红书</i><i>微信</i><i>朋友圈</i></span></button></footer>;
 }
 
 function VisualSlot({ label, tone, compact = false }: { label: string; tone: string; compact?: boolean }) {

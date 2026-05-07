@@ -2953,19 +2953,29 @@ body {
 }
 
 .home-preview-list {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex;
   gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.home-preview-list::-webkit-scrollbar {
+  display: none;
 }
 
 .home-preview-card {
   position: relative;
+  flex: 0 0 calc((100% - 16px) / 3);
   min-height: 164px;
   padding: 10px 7px 9px;
   border-radius: 15px;
   background: linear-gradient(180deg, #fff 0%, #fff9f7 100%);
   border: 1px solid rgba(255, 194, 214, 0.86);
   overflow: hidden;
+  scroll-snap-align: start;
 }
 
 .home-preview-card h3 {
@@ -3293,63 +3303,6 @@ body {
   text-align: center;
 }
 
-.home-share-footer {
-  position: relative;
-  z-index: 4;
-  margin-top: 16px;
-  padding: 15px 14px;
-  border-radius: 22px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.91);
-  border: 1px solid var(--card-border);
-  box-shadow: var(--shadow-card);
-}
-
-.home-share-heart {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: radial-gradient(circle, #ff8bab 0%, #fff0f5 68%);
-}
-
-.home-share-heart img {
-  width: 42px;
-  height: 42px;
-  animation: homeHeartPulse 2.8s ease-in-out infinite;
-}
-
-.home-share-text strong {
-  display: block;
-  color: #342a2d;
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-.home-share-text p {
-  margin: 4px 0 0;
-  color: #7b6a70;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.home-share-icons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.home-share-icons img {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  filter: drop-shadow(0 5px 12px rgba(255, 90, 140, 0.14));
-}
-
 @keyframes homeCopyIn {
   from {
     opacity: 0;
@@ -3389,15 +3342,6 @@ body {
   50% {
     opacity: 1;
     transform: scale(1.08);
-  }
-}
-
-@keyframes homeHeartPulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.07);
   }
 }
 
@@ -3500,18 +3444,11 @@ body {
   }
 
   .home-preview-list {
-    display: flex;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-  }
-
-  .home-preview-list::-webkit-scrollbar {
-    display: none;
+    gap: 8px;
   }
 
   .home-preview-card {
-    flex: 0 0 68px;
+    flex-basis: calc((100% - 16px) / 3);
   }
 
   .home-redeem-section {
@@ -3537,13 +3474,6 @@ body {
     font-size: 18px;
   }
 
-  .home-share-footer {
-    grid-template-columns: auto 1fr;
-  }
-
-  .home-share-icons {
-    grid-column: 2;
-  }
 }
 
 /* Choose report page: visual report showcase. */

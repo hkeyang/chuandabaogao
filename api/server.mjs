@@ -27,6 +27,81 @@ const products = {
     name: "全案探索卡",
     rights: { topic: 3, comprehensive: 1 },
   },
+  S19K7M2A: {
+    id: "single",
+    name: "单次专题报告券",
+    rights: { topic: 1, comprehensive: 0 },
+  },
+  S19P8Q4B: {
+    id: "single",
+    name: "单次专题报告券",
+    rights: { topic: 1, comprehensive: 0 },
+  },
+  S19R6T5C: {
+    id: "single",
+    name: "单次专题报告券",
+    rights: { topic: 1, comprehensive: 0 },
+  },
+  S19V3W9D: {
+    id: "single",
+    name: "单次专题报告券",
+    rights: { topic: 1, comprehensive: 0 },
+  },
+  S19X2Y7E: {
+    id: "single",
+    name: "单次专题报告券",
+    rights: { topic: 1, comprehensive: 0 },
+  },
+  T49K7M2A: {
+    id: "triple",
+    name: "三次探索卡",
+    rights: { topic: 3, comprehensive: 0 },
+  },
+  T49P8Q4B: {
+    id: "triple",
+    name: "三次探索卡",
+    rights: { topic: 3, comprehensive: 0 },
+  },
+  T49R6T5C: {
+    id: "triple",
+    name: "三次探索卡",
+    rights: { topic: 3, comprehensive: 0 },
+  },
+  T49V3W9D: {
+    id: "triple",
+    name: "三次探索卡",
+    rights: { topic: 3, comprehensive: 0 },
+  },
+  T49X2Y7E: {
+    id: "triple",
+    name: "三次探索卡",
+    rights: { topic: 3, comprehensive: 0 },
+  },
+  F99K7M2A: {
+    id: "full",
+    name: "全案探索卡",
+    rights: { topic: 3, comprehensive: 1 },
+  },
+  F99P8Q4B: {
+    id: "full",
+    name: "全案探索卡",
+    rights: { topic: 3, comprehensive: 1 },
+  },
+  F99R6T5C: {
+    id: "full",
+    name: "全案探索卡",
+    rights: { topic: 3, comprehensive: 1 },
+  },
+  F99V3W9D: {
+    id: "full",
+    name: "全案探索卡",
+    rights: { topic: 3, comprehensive: 1 },
+  },
+  F99X2Y7E: {
+    id: "full",
+    name: "全案探索卡",
+    rights: { topic: 3, comprehensive: 1 },
+  },
 };
 
 const purchaseLinks = {
