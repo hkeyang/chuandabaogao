@@ -9,19 +9,19 @@ binding = "ASSETS"
 # Production D1/R2 bindings are intentionally disabled until the real
 # Cloudflare resource IDs are available. Keep worker/schema.sql and
 # worker/index.ts ready; then uncomment these blocks and fill database_id.
-#
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "aisea-production"
-# database_id = "replace-with-real-d1-database-id"
-#
-# [[r2_buckets]]
-# binding = "R2"
-# bucket_name = "aisea-reports"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "aisea-production"
+database_id = "4f177ea6-183a-42c0-a77f-bedfa69a847c"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "aisea-reports"
 
 [vars]
 PUBLIC_BASE_URL = "https://ai.aisea.space"
-R2_PUBLIC_BASE_URL = "https://img.hair.aisea.space"
+R2_PUBLIC_BASE_URL = "https://pub-e3861c2328cc498cb239b6edc125b9a9.r2.dev"
 OPENAI_IMAGE_MODEL = "gpt-image-2"
 OPENAI_IMAGE_ENDPOINT = "https://img.hair.aisea.space/v1/images/generations"
 COUPON_VALID_DAYS = "30"
