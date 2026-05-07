@@ -73,8 +73,64 @@ async function requireAdmin(request: Request, env: Env, roles: string[] = ["owne
   return { id: "env_owner", role: "owner", name: "AISea Owner", roles };
 }
 
+function typePrompt(reportType: string) {
+  const prompts: Record<string, string[]> = {
+    comprehensive: [
+      "1. 风格人设与形象关键词：给出温和正向的一句话结论。",
+      "2. 发型推荐：真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替。",
+      "3. 发色推荐：真实头发质感色板，例如黑茶色、冷茶棕、摩卡棕、奶茶棕。",
+      "4. 个人色彩：推荐色盘与谨慎色盘，颜色名称要准确。",
+      "5. 妆容建议：底妆、眉形、眼妆、腮红、唇色。",
+      "6. 穿搭配饰：服装、鞋、包、首饰、发饰和 3 套 OOTD。",
+      "7. 场景 Look：日常、通勤/上学、拍照、聚会。",
+      "8. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
+      "9. 今日可执行的 3 个变美动作和小红书分享金句。",
+    ],
+    hair: [
+      "1. 脸部轮廓、发质状态、发量感、当前发型气质。",
+      "2. 推荐发型：真实缩略图，展示长度、刘海、卷度、层次。",
+      "3. 发色推荐：展示低饱和、自然过渡的发色质感。",
+      "4. 刘海 / 长度 / 卷度建议。",
+      "5. 谨慎尝试方向。",
+      "6. 理发师沟通关键词和今日专属造型灵感。",
+    ],
+    makeup: [
+      "1. 个人色彩倾向：冷暖、明度、饱和度、对比度。",
+      "2. 推荐色盘：主色、辅助色、点缀色、中性色。",
+      "3. 妆容方向：底妆、眉形、眼妆、腮红、唇色。",
+      "4. 发色延展建议。",
+      "5. 谨慎尝试的妆色与雷区。",
+      "6. 今日可执行妆容步骤。",
+    ],
+    outfit: [
+      "1. 风格定位：结合照片与偏好给出一句话结论。",
+      "2. 服装推荐：上衣、外套、下装或连衣搭配。",
+      "3. 鞋包首饰：必须对应人物性别呈现，男性照片只输出男性或中性男性单品，禁止裙装、高跟鞋和口红类女性化内容。",
+      "4. 3 套 OOTD 灵感：日常、通勤、拍照或聚会。",
+      "5. 谨慎尝试：避免风格冲突和过度堆叠。",
+      "6. 今日穿搭清单和一句话搭配口诀。",
+    ],
+    look: [
+      "1. 日常 Look。",
+      "2. 通勤 / 上学 Look。",
+      "3. 拍照 Look。",
+      "4. 聚会 Look。",
+      "5. 场景对比表与今日可执行建议。",
+      "6. 适合保存的总结语。",
+    ],
+  };
+  return (prompts[reportType] || prompts.comprehensive).join("\n");
+}
+
 function promptFor(input: Json) {
-  const reportType = String(input.report_type || "综合形象报告");
+  const reportType = String(input.report_type || "comprehensive");
+  const reportLabel = ({
+    comprehensive: "综合形象报告",
+    hair: "发型发色专题",
+    makeup: "色彩妆容专题",
+    outfit: "穿搭配饰专题",
+    look: "场景 Look 专题",
+  } as Record<string, string>)[reportType] || "综合形象报告";
   const persona = String(input.style_persona || "轻法式白月光");
   const keywords = String(input.style_keywords || "清透 / 温柔 / 低饱和 / 松弛感");
   const style = String(input.style_preference || "系统自动推荐");
@@ -87,13 +143,23 @@ function promptFor(input: Json) {
 2. 小红书封面图：1080×1440，3:4，标题大、人物清晰、留白干净。
 
 报告类型：${reportType}
+报告名称：${reportLabel}
 风格人设：${persona}
 关键词：${keywords}
 造型表达偏好：${style}
 目标场景：${scene}
 改变幅度：${change}
 
-必须包含：发型推荐、真实发色质感色板、个人色彩、妆容建议、穿搭配饰、场景 Look、雷区提醒、今日可执行建议、小红书分享金句。
+人物识别硬规则：
+- 先根据上传照片识别人物的性别呈现、气质和五官轮廓，再决定输出内容。
+- 如果照片呈现为男性或偏男性气质，所有穿搭、鞋包、配饰、发型和妆容建议都必须是男性或中性男性风格。
+- 男性照片禁止出现裙装、高跟鞋、口红、浓重腮红、女性化连衣裙、夸张睫毛、擦边姿态等内容。
+- 如果性别特征不清晰，优先输出中性、克制、适合男性也适合女性的安全风格。
+- 必须尽量保留用户本人核心长相特征，不要把用户生成成别人的脸。
+
+必须包含：
+${typePrompt(reportType)}
+
 文字必须是清晰简体中文。禁止乱码、假中文、随机符号、重复字、不可读小字。
 保留用户本人核心长相特征，不要过度美颜，不要攻击外貌，不要低俗或成人化。`;
 }
@@ -112,7 +178,7 @@ async function imageGenerate(env: Env, payload: Json, prompt: string) {
       size: "1080x1920",
       n: 1,
       response_format: "b64_json",
-      user_photo_url: payload.user_photo_url,
+      user_photo_url: payload.user_photo_data_url || payload.user_photo_url,
       extra_outputs: [{ name: "xhs_cover", size: "1080x1440" }],
     }),
   });
@@ -199,11 +265,16 @@ async function handleApi(request: Request, env: Env, url: URL) {
     const rightKey = String(input.right_key || "topic");
     let reportImageUrl = "";
     let coverImageUrl = "";
+    let subjectGender = "unknown";
     let status = "completed";
     let error = "";
     try {
       const generated = await imageGenerate(env, input, prompt);
       const image = Array.isArray(generated.data) ? generated.data[0] as Json : generated;
+      const generatedSubject = typeof generated.subject === "object" && generated.subject
+        ? (generated.subject as Json).gender
+        : "";
+      subjectGender = String(generated.subject_gender || generatedSubject || image.subject_gender || "unknown");
       if (typeof image.b64_json === "string") {
         reportImageUrl = await storeB64(env, `reports/${reportId}.png`, image.b64_json);
       }
@@ -219,7 +290,7 @@ async function handleApi(request: Request, env: Env, url: URL) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`)
       .bind(reportId, String(input.client_id || ""), String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "轻法式白月光"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageUrl, coverImageUrl, now(), status === "completed" ? now() : null)
       .run();
-    return json({ report_id: reportId, status, error, prompt, report_image_url: reportImageUrl, xhs_cover_image_url: coverImageUrl });
+    return json({ report_id: reportId, status, error, prompt, subject_gender: subjectGender, report_image_url: reportImageUrl, xhs_cover_image_url: coverImageUrl });
   }
 
   if (request.method === "POST" && url.pathname === "/api/reports/prepare-xhs-share") {

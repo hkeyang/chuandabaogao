@@ -222,8 +222,64 @@ function buildShareCopy(persona = "轻法式白月光") {
 #AI形象报告 #变美思路 #个人风格定位 #发型推荐 #普通女生变美`;
 }
 
+function buildTypePrompt(reportType) {
+  const prompts = {
+    comprehensive: [
+      "1. 风格人设与形象关键词：给出温和正向的一句话结论。",
+      "2. 发型推荐：真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替。",
+      "3. 发色推荐：真实头发质感色板，例如黑茶色、冷茶棕、摩卡棕、奶茶棕。",
+      "4. 个人色彩：推荐色盘与谨慎色盘，颜色名称要准确。",
+      "5. 妆容建议：底妆、眉形、眼妆、腮红、唇色。",
+      "6. 穿搭配饰：服装、鞋、包、首饰、发饰和 3 套 OOTD。",
+      "7. 场景 Look：日常、通勤/上学、拍照、聚会。",
+      "8. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
+      "9. 今日可执行的 3 个变美动作和小红书分享金句。",
+    ],
+    hair: [
+      "1. 脸部轮廓、发质状态、发量感、当前发型气质。",
+      "2. 推荐发型：真实缩略图，展示长度、刘海、卷度、层次。",
+      "3. 发色推荐：展示低饱和、自然过渡的发色质感。",
+      "4. 刘海 / 长度 / 卷度建议。",
+      "5. 谨慎尝试方向。",
+      "6. 理发师沟通关键词和今日专属造型灵感。",
+    ],
+    makeup: [
+      "1. 个人色彩倾向：冷暖、明度、饱和度、对比度。",
+      "2. 推荐色盘：主色、辅助色、点缀色、中性色。",
+      "3. 妆容方向：底妆、眉形、眼妆、腮红、唇色。",
+      "4. 发色延展建议。",
+      "5. 谨慎尝试的妆色与雷区。",
+      "6. 今日可执行妆容步骤。",
+    ],
+    outfit: [
+      "1. 风格定位：结合照片与偏好给出一句话结论。",
+      "2. 服装推荐：上衣、外套、下装或连衣搭配。",
+      "3. 鞋包首饰：必须对应人物性别呈现，男性照片只输出男性或中性男性单品，禁止裙装、高跟鞋和口红类女性化内容。",
+      "4. 3 套 OOTD 灵感：日常、通勤、拍照或聚会。",
+      "5. 谨慎尝试：避免风格冲突和过度堆叠。",
+      "6. 今日穿搭清单和一句话搭配口诀。",
+    ],
+    look: [
+      "1. 日常 Look。",
+      "2. 通勤 / 上学 Look。",
+      "3. 拍照 Look。",
+      "4. 聚会 Look。",
+      "5. 场景对比表与今日可执行建议。",
+      "6. 适合保存的总结语。",
+    ],
+  };
+  return (prompts[reportType] || prompts.comprehensive).join("\n");
+}
+
 function buildImagePrompt(input = {}) {
-  const reportType = input.report_type || "综合形象报告";
+  const reportType = String(input.report_type || "comprehensive");
+  const reportLabel = {
+    comprehensive: "综合形象报告",
+    hair: "发型发色专题",
+    makeup: "色彩妆容专题",
+    outfit: "穿搭配饰专题",
+    look: "场景 Look 专题",
+  }[reportType] || "综合形象报告";
   const style = input.style_preference || "系统自动推荐";
   const scene = input.scene_preference || "系统推荐";
   const change = input.change_level || "系统推荐";
@@ -235,28 +291,22 @@ function buildImagePrompt(input = {}) {
 - 所有文字必须为中文，不要乱码、错字、重复字或无意义文字。
 
 【报告类型】
-${reportType}
+${reportLabel}
 
 【用户偏好】
 - 造型表达偏好：${style}
 - 目标场景：${scene}
 - 改变幅度：${change}
 
-【风格人设】
-轻法式白月光。关键词：清透、温柔、松弛、低饱和、轻法式、自然、知性、氛围感。
-标题建议：轻法式白月光养成报告。
-变美方向：减少厚重感，增加轻盈感、柔和感和氛围感。
+【人物识别要求】
+- 先根据上传照片识别人物的性别呈现、气质和五官轮廓，再决定输出内容。
+- 如果照片呈现为男性或偏男性气质，所有穿搭、鞋包、配饰、发型和妆容建议都必须是男性或中性男性风格。
+- 男性照片禁止出现裙装、高跟鞋、口红、浓重腮红、女性化连衣裙、夸张睫毛、擦边姿态等内容。
+- 如果性别特征不清晰，优先输出中性、克制、适合男性也适合女性的安全风格。
+- 必须尽量保留用户本人核心长相特征，不要把用户生成成别人的脸。
 
 【必须包含】
-1. 顶部醒目标题区：用户照片主视觉、人设名、关键词、一句话变美方向。
-2. 发型推荐：展示真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替。
-3. 发色推荐：展示真实头发质感色板，例如冷茶棕、奶茶棕、摩卡棕、黑茶色。
-4. 色彩妆容：展示色盘、口红、腮红、眼影、眉形、底妆方向。
-5. 穿搭配饰：展示服装、鞋、包、首饰、发饰和 3 套 OOTD 灵感。
-6. 场景 Look：日常、通勤/上学、拍照、聚会的完整形象方案。
-7. 雷区提醒：用“谨慎尝试”“容易削弱协调感”等温和表达。
-8. 今日可执行建议：3 条具体行动。
-9. 小红书分享金句：2-4 条可直接发布的短句。
+${buildTypePrompt(reportType)}
 
 【禁止】
 - 不要攻击外貌，不要写“丑、土、脸大、显老、不适合你”。
@@ -284,11 +334,12 @@ async function generateImageAssets(input, reportId, prompt) {
     signal: AbortSignal.timeout(imageEndpointTimeoutMs),
     body: JSON.stringify({
       report_id: reportId,
-      report_type: input.report_type || "综合形象报告",
+      report_type: input.report_type || "comprehensive",
       style_persona: input.style_persona || "轻法式白月光",
       style_preference: input.style_preference || "系统自动推荐",
       scene_preference: input.scene_preference || "系统推荐",
       change_level: input.change_level || "系统推荐",
+      user_photo_url: input.user_photo_data_url || input.user_photo_url || "",
       prompt,
       required_outputs: {
         report_image: "1080x1920",
@@ -309,11 +360,13 @@ async function generateImageAssets(input, reportId, prompt) {
     report_image_url: data.report_image_url,
     xhs_cover_image_url: data.xhs_cover_image_url,
     xhs_summary_image_url: data.xhs_summary_image_url || data.xhs_cover_image_url,
+    subject_gender: data.subject_gender || data.subject?.gender,
   };
 }
 
 function buildCoverSvg(report = {}) {
   const persona = escapeXml(report.style_persona || "轻法式白月光");
+  const photo = report.source_photo_url || report.user_photo_url || "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1440" viewBox="0 0 1080 1440">
   <defs>
@@ -336,6 +389,7 @@ function buildCoverSvg(report = {}) {
   </defs>
   <rect width="1080" height="1440" fill="url(#bg)"/>
   <rect x="70" y="70" width="940" height="1300" rx="56" fill="#fffdf9" stroke="#f1e1e4" stroke-width="3"/>
+  ${photoFrame("coverPhoto", photo, 690, 150, 280, 380, 32)}
   <rect x="112" y="130" width="310" height="68" rx="34" fill="#fff1f6"/>
   <text x="154" y="175" class="tag">AI 个人形象报告</text>
   <text x="112" y="350" class="serif" font-size="112">${persona}</text>
@@ -361,6 +415,7 @@ function buildCoverSvg(report = {}) {
 
 function buildReportSvg(report = {}) {
   const persona = escapeXml(report.style_persona || "轻法式白月光");
+  const photo = report.source_photo_url || report.user_photo_url || "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
   <defs>
@@ -379,6 +434,7 @@ function buildReportSvg(report = {}) {
   </defs>
   <rect width="1080" height="1920" fill="url(#bg)"/>
   <rect x="56" y="56" width="968" height="1808" rx="54" fill="#fffdf9" stroke="#f1e1e4" stroke-width="3"/>
+  ${photoFrame("reportPhoto", photo, 704, 116, 280, 300, 28)}
   <text x="96" y="185" class="serif" font-size="88">${persona}</text>
   <text x="96" y="285" class="serif" font-size="88">养成报告</text>
   <text x="96" y="350" class="small">清透 / 温柔 / 低饱和 / 松弛感。减少厚重感，增加轻盈和氛围。</text>
@@ -402,6 +458,14 @@ function reportModule(x, y, title, lines) {
   <text x="${x + 30}" y="${y + 58}" class="title">${escapeXml(title)}</text>
   <text x="${x + 30}" y="${y + 118}" class="body">${escapeXml(lines[0])}</text>
   <text x="${x + 30}" y="${y + 166}" class="small">${escapeXml(lines[1])}</text>`;
+}
+
+function photoFrame(id, photoUrl, x, y, width, height, radius = 28) {
+  if (!photoUrl) return "";
+  const safePhoto = escapeXml(photoUrl);
+  return `<defs><clipPath id="${id}"><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}"/></clipPath></defs>
+  <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="#fff7fb" stroke="#f1e1e4" stroke-width="3"/>
+  <image href="${safePhoto}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>`;
 }
 
 async function handleApi(req, res, url) {
@@ -481,6 +545,8 @@ async function handleApi(req, res, url) {
       report_type: body.report_type || "comprehensive",
       style_persona: body.style_persona || "轻法式白月光",
       style_keywords: ["清透", "温柔", "低饱和", "松弛感"],
+      subject_gender: assets.subject_gender || body.subject_gender || "unknown",
+      source_photo_url: body.user_photo_data_url || body.user_photo_url || "",
       image_provider: assets.provider,
       image_provider_error: assets.provider_error,
       report_image_url: assets.report_image_url,

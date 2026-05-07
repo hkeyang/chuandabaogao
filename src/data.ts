@@ -221,7 +221,7 @@ export const preferenceSections: PreferenceSection[] = [
     title: "造型表达偏好",
     desc: "选择你更喜欢的整体风格方向",
     icon: PREFERENCE_ASSETS.sparkle,
-    mode: "multiple",
+    mode: "single",
     options: [
       { id: "auto", label: "系统自动推荐", icon: PREFERENCE_ASSETS.magicPink, color: "#ff4f8b", bg: "#fff1f6", tile: PREFERENCE_ASSETS.tileBlush },
       { id: "fresh", label: "清爽利落", icon: PREFERENCE_ASSETS.leaf, color: "#7fa9dc", bg: "#f5f9ff", tile: PREFERENCE_ASSETS.tileIce },
@@ -236,8 +236,7 @@ export const preferenceSections: PreferenceSection[] = [
     title: "目标场景",
     desc: "选择你希望覆盖的主要场景",
     icon: PREFERENCE_ASSETS.calendar,
-    mode: "multiple",
-    maxSelected: 3,
+    mode: "single",
     options: [
       { id: "daily", label: "日常干净", icon: PREFERENCE_ASSETS.cup, color: "#ff5b8f", bg: "#fff1f6", tile: PREFERENCE_ASSETS.tileBlush },
       { id: "school", label: "通勤/上学", icon: PREFERENCE_ASSETS.briefcase, color: "#6d9bd6", bg: "#f6faff", tile: PREFERENCE_ASSETS.tileIce },

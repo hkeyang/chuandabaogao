@@ -100,11 +100,11 @@ const FULL_CARD_ASSETS = {
 
 const CHOOSE_REPORT_ASSETS = {
   badge: new URL("../assets/aisea_icon_03-choose report/03_全案专享徽章.png", import.meta.url).href,
-  comprehensivePreview: new URL("../assets/aisea_icon_03-choose report/04_综合形象报告预览卡.png", import.meta.url).href,
-  hair: new URL("../assets/aisea_icon_03-choose report/05_发型发色专题配图.png", import.meta.url).href,
-  makeup: new URL("../assets/aisea_icon_03-choose report/06_色彩妆容专题配图.png", import.meta.url).href,
-  outfit: new URL("../assets/aisea_icon_03-choose report/07_穿搭配饰专题配图.png", import.meta.url).href,
-  look: new URL("../assets/aisea_icon_03-choose report/08_场景Look专题配图.png", import.meta.url).href,
+  comprehensivePreview: new URL("../assets/aisea_icon_03-choose report/01_综合形象报告_无棋盘格.png", import.meta.url).href,
+  hair: new URL("../assets/aisea_icon_03-choose report/02_发型发色专题_无棋盘格.png", import.meta.url).href,
+  makeup: new URL("../assets/aisea_icon_03-choose report/03_色彩妆容专题_无棋盘格.png", import.meta.url).href,
+  outfit: new URL("../assets/aisea_icon_03-choose report/04_穿搭配饰专题_无棋盘格.png", import.meta.url).href,
+  look: new URL("../assets/aisea_icon_03-choose report/05_场景Look专题_无棋盘格.png", import.meta.url).href,
 };
 
 const PHOTO_UPLOAD_ASSETS = {
@@ -273,6 +273,7 @@ interface AppState {
   reportType: ReportTypeId;
   photoUrl: string;
   photoName: string;
+  photoDataUrl?: string;
   preferences: PreferenceState;
   privacyAccepted: boolean;
   progress: number;
@@ -310,32 +311,34 @@ const DEMO_COUPON_PRODUCTS: Record<string, ProductId> = {
   F99X2Y7E: "full",
 };
 const DEFAULT_PREFERENCES: PreferenceState = {
-  stylePreferences: ["auto", "gentle"],
-  targetScenes: ["daily", "photo"],
+  stylePreferences: ["auto"],
+  targetScenes: ["daily"],
   changeIntensity: "light",
 };
 
 function normalizePreferences(value: unknown): PreferenceState {
   const raw = (value && typeof value === "object") ? value as Partial<Record<string, unknown>> : {};
   const legacy = raw as { style?: unknown; scene?: unknown; change?: unknown };
-  const stylePreferences = Array.isArray(raw.stylePreferences)
+  const stylePreferencesRaw = Array.isArray(raw.stylePreferences)
     ? raw.stylePreferences.filter((item): item is string => typeof item === "string")
     : typeof legacy.style === "string"
       ? [legacy.style]
       : DEFAULT_PREFERENCES.stylePreferences;
-  const targetScenes = Array.isArray(raw.targetScenes)
+  const targetScenesRaw = Array.isArray(raw.targetScenes)
     ? raw.targetScenes.filter((item): item is string => typeof item === "string")
     : typeof legacy.scene === "string"
       ? [legacy.scene]
       : DEFAULT_PREFERENCES.targetScenes;
+  const stylePreferences = stylePreferencesRaw.length ? [stylePreferencesRaw[0]] : [...DEFAULT_PREFERENCES.stylePreferences];
+  const targetScenes = targetScenesRaw.length ? [targetScenesRaw[0]] : [...DEFAULT_PREFERENCES.targetScenes];
   const changeIntensity = typeof raw.changeIntensity === "string"
     ? raw.changeIntensity
     : typeof legacy.change === "string"
       ? legacy.change
       : DEFAULT_PREFERENCES.changeIntensity;
   return {
-    stylePreferences: stylePreferences.length ? stylePreferences : [...DEFAULT_PREFERENCES.stylePreferences],
-    targetScenes: targetScenes.length ? targetScenes : [...DEFAULT_PREFERENCES.targetScenes],
+    stylePreferences,
+    targetScenes,
     changeIntensity,
   };
 }
@@ -355,6 +358,7 @@ function loadState(): AppState {
     reportType: "comprehensive",
     photoUrl: ASSETS.heroAlt,
     photoName: "示例照片",
+    photoDataUrl: undefined,
     preferences: DEFAULT_PREFERENCES,
     privacyAccepted: false,
     progress: 0,
@@ -408,6 +412,7 @@ function loadState(): AppState {
       photoCheckResult: saved.photoCheckResult,
       uploadErrorMessage: saved.uploadErrorMessage,
       isGenerating: Boolean(saved.isGenerating),
+      photoDataUrl: typeof saved.photoDataUrl === "string" ? saved.photoDataUrl : undefined,
     } : fallback;
   } catch {
     return fallback;
@@ -434,6 +439,19 @@ function code8(existing: Set<string>) {
 
 function buildPrompt(type: ReportType, personaId: PersonaId, prefs: AppState["preferences"]) {
   const persona = PERSONAS[personaId];
+  const moduleLines = type.id === "comprehensive"
+    ? [
+        "1. 风格人设与形象关键词：给出温和正向的一句话结论。",
+        "2. 发型推荐：真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替。",
+        "3. 发色推荐：真实头发质感色板，例如黑茶色、冷茶棕、摩卡棕、奶茶棕。",
+        "4. 个人色彩：推荐色盘与谨慎色盘，颜色名称要准确。",
+        "5. 妆容建议：底妆、眉形、眼妆、腮红、唇色。",
+        "6. 穿搭配饰：服装、鞋、包、首饰、发饰和 3 套 OOTD。",
+        "7. 场景 Look：日常、通勤/上学、拍照、聚会。",
+        "8. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
+        "9. 今日可执行的 3 个变美动作和小红书分享金句。",
+      ]
+    : type.modules.map((item, index) => `${index + 1}. ${item}：围绕「${type.name}」展开，主题准确，不混入无关模块。`);
   return `你是一名专业的 AI 形象报告设计师，请基于用户上传的照片，生成一张高信息密度、适合保存和分享到小红书/朋友圈的中文个人形象报告长图。
 
 【输出要求】
@@ -445,6 +463,8 @@ function buildPrompt(type: ReportType, personaId: PersonaId, prefs: AppState["pr
 - 以用户上传照片为参考，保留核心长相特征和自然气质。
 - 不要过度美颜，不要大幅改变五官，不要夸张失真。
 - 不要低俗、暴露、成人化或擦边姿势。
+- 如果照片呈现为男性或偏男性气质，所有穿搭、鞋包、配饰、造型示例都必须是男性或中性男性风格，禁止裙装、高跟鞋、口红、睫毛膏、夸张腮红、女性化连衣裙等内容。
+- 如果照片性别特征不清晰，优先采用中性、克制、适合男性也适合女性的安全风格。
 
 【本次报告】
 - 报告类型：${type.name}
@@ -456,17 +476,7 @@ function buildPrompt(type: ReportType, personaId: PersonaId, prefs: AppState["pr
 - 改变幅度：${prefs.changeIntensity}
 
 【必须包含模块】
-${type.id === "comprehensive" ? [
-  "1. 风格人设与形象关键词：给出温和正向的一句话结论。",
-  "2. 发型推荐：真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替。",
-  "3. 发色推荐：真实头发质感色板，例如黑茶色、冷茶棕、摩卡棕、奶茶棕。",
-  "4. 个人色彩：推荐色盘与谨慎色盘，颜色名称要准确。",
-  "5. 妆容建议：底妆、眉形、眼妆、腮红、唇色。",
-  "6. 穿搭配饰：服装、鞋、包、首饰、发饰和 3 套 OOTD。",
-  "7. 场景 Look：日常、通勤/上学、拍照、聚会。",
-  "8. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
-  "9. 今日可执行的 3 个变美动作和小红书分享金句。",
-] : type.modules.map((item, index) => `${index + 1}. ${item}：围绕「${type.name}」展开，主题准确，不混入无关模块。`).join("\n")}
+${moduleLines.join("\n")}
 
 【文案风格】
 - 温柔、鼓励、自信，不制造外貌焦虑。
@@ -548,6 +558,15 @@ function validateUploadFile(file: File) {
   return null;
 }
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("file-read-failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function inspectPhotoQuality(file: File): Promise<PhotoCheckResult> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -587,9 +606,11 @@ function photoCheckCopy(result?: PhotoCheckResult) {
 function App() {
   const [state, setState] = useState<AppState>(loadState);
   const [toast, setToast] = useState<Toast | null>(null);
+  const generationSeqRef = useRef(0);
 
   useEffect(() => {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    const { photoDataUrl: _photoDataUrl, ...serializableState } = state;
+    localStorage.setItem(LS_KEY, JSON.stringify(serializableState));
   }, [state]);
 
   useEffect(() => {
@@ -663,11 +684,14 @@ function App() {
     if (!state.photoUrl) return showToast("请先上传照片");
     if (!state.privacyAccepted) return showToast("请先确认照片授权");
     if (state.rights[reportType.rightKey] <= 0) return showToast("当前权益不足，请购买新券码");
+    generationSeqRef.current += 1;
     setState((s) => ({ ...s, progress: 8, route: "progress", isGenerating: true }));
   }
 
   useEffect(() => {
     if (state.route !== "progress") return;
+    const generationId = generationSeqRef.current;
+    const controller = new AbortController();
     const steps = [18, 31, 48, 63, 78, 91, 100];
     let index = Math.max(0, steps.findIndex((step) => step > state.progress));
     if (index < 0) index = steps.length - 1;
@@ -675,28 +699,84 @@ function App() {
       setState((s) => {
         const next = steps[index] || 100;
         index += 1;
-        if (next >= 100) {
-          window.clearInterval(timer);
-          const type = REPORT_TYPES.find((item) => item.id === s.reportType) || REPORT_TYPES[0];
-          const personaId = pickPersona(s.preferences.stylePreferences, s.preferences.targetScenes);
-          const prompt = buildPrompt(type, personaId, s.preferences);
-          const rights = { ...s.rights };
-          rights[type.rightKey] = Math.max(0, rights[type.rightKey] - 1);
+        return { ...s, progress: next };
+      });
+    }, 1300);
+
+    const run = async () => {
+      const type = REPORT_TYPES.find((item) => item.id === state.reportType) || REPORT_TYPES[0];
+      const personaId = pickPersona(state.preferences.stylePreferences, state.preferences.targetScenes);
+      const prompt = buildPrompt(type, personaId, state.preferences);
+      try {
+        const response = await fetch("/api/reports/generate", {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            client_id: `web_${Date.now()}`,
+            report_type: type.id,
+            report_name: type.name,
+            style_persona: PERSONAS[personaId].title,
+            style_keywords: PERSONAS[personaId].keywords.join(" / "),
+            style_preference: state.preferences.stylePreferences.join(" / "),
+            scene_preference: state.preferences.targetScenes.join(" / "),
+            change_level: state.preferences.changeIntensity,
+            user_photo_data_url: state.photoDataUrl,
+            user_photo_url: state.photoDataUrl || state.photoUrl,
+            photo_name: state.photoName,
+            prompt,
+          }),
+        });
+        if (!response.ok) throw new Error(`generate failed with HTTP ${response.status}`);
+        const data = await response.json();
+        if (generationId !== generationSeqRef.current) return;
+        const rightKey = type.rightKey;
+        setState((latest) => {
+          const rights = { ...latest.rights };
+          rights[rightKey] = Math.max(0, rights[rightKey] - 1);
           const report: UserReport = {
-            id: `rpt_${Date.now()}`,
+            id: String(data.report_id || `rpt_${Date.now()}`),
             type: type.id,
             name: type.name,
             createdAt: now(),
             persona: personaId,
-            prompt,
+            photoDataUrl: latest.photoDataUrl,
+            reportImageUrl: data.report_image_url || "",
+            coverImageUrl: data.xhs_cover_image_url || "",
+            prompt: data.prompt || prompt,
+            subjectGender: data.subject_gender || "unknown",
           };
-          window.setTimeout(() => setState((latest) => ({ ...latest, route: "result", isGenerating: false })), 350);
-          return { ...s, progress: 100, rights, reports: [report, ...s.reports], isGenerating: false };
-        }
-        return { ...s, progress: next };
-      });
-    }, 26000);
-    return () => window.clearInterval(timer);
+          return {
+            ...latest,
+            progress: 100,
+            rights,
+            reports: [report, ...latest.reports],
+            isGenerating: false,
+          };
+        });
+        window.clearInterval(timer);
+        window.setTimeout(() => {
+          if (generationId === generationSeqRef.current) {
+            setState((latest) => ({ ...latest, route: "result" }));
+          }
+        }, 260);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        window.clearInterval(timer);
+        setState((latest) => ({
+          ...latest,
+          progress: 100,
+          isGenerating: false,
+        }));
+        showToast(error instanceof Error ? error.message : "生成失败，请重试");
+      }
+    };
+
+    void run();
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
   }, [state.route]);
 
   function updateAdmin(admin: AdminState) {
@@ -1190,11 +1270,12 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
     if (fileRef.current) fileRef.current.value = "";
     const error = validateUploadFile(file);
     if (error) {
-      updateUploadState({ uploadStatus: "error", photoCheckResult: "failed", uploadErrorMessage: error });
+      updateUploadState({ uploadStatus: "error", photoCheckResult: "failed", uploadErrorMessage: error, photoDataUrl: undefined });
       showToast(error);
       return;
     }
     const previewUrl = URL.createObjectURL(file);
+    const dataUrl = await readFileAsDataUrl(file);
     const selectionId = ++selectionRef.current;
     if (state.photoUrl.startsWith("blob:")) URL.revokeObjectURL(state.photoUrl);
     updateUploadState({
@@ -1203,6 +1284,7 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
       photoCheckResult: undefined,
       photoName: file.name,
       photoUrl: previewUrl,
+      photoDataUrl: dataUrl,
       isGenerating: false,
     });
     try {
@@ -1217,6 +1299,7 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
         uploadErrorMessage: undefined,
         photoName: file.name,
         photoUrl: previewUrl,
+        photoDataUrl: dataUrl,
       });
       showToast(result === "available" ? "照片可用，可继续生成" : "照片已上传，请确认清晰度");
     } catch {
@@ -1228,6 +1311,7 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
         uploadStatus: "error",
         photoCheckResult: "failed",
         uploadErrorMessage: "照片读取失败，请重新上传",
+        photoDataUrl: undefined,
       });
       URL.revokeObjectURL(previewUrl);
       showToast("照片读取失败，请重新上传");
@@ -1404,27 +1488,14 @@ function PreferencesPage({
   const [saving, setSaving] = useState(false);
   const [reuploadOpen, setReuploadOpen] = useState(false);
 
-  const updateMultiple = (sectionId: "style" | "scene", optionId: string, maxSelected?: number) => {
-    setState((s) => {
-      const next = [...(sectionId === "style" ? s.preferences.stylePreferences : s.preferences.targetScenes)];
-      const index = next.indexOf(optionId);
-      if (index >= 0) {
-        next.splice(index, 1);
-      } else {
-        if (typeof maxSelected === "number" && next.length >= maxSelected) {
-          showToast(`最多选择 ${maxSelected} 个主要场景`);
-          return s;
-        }
-        next.push(optionId);
-      }
-      return {
-        ...s,
-        preferences: {
-          ...s.preferences,
-          [sectionId === "style" ? "stylePreferences" : "targetScenes"]: next,
-        },
-      };
-    });
+  const updatePreference = (sectionId: "style" | "scene", optionId: string) => {
+    setState((s) => ({
+      ...s,
+      preferences: {
+        ...s.preferences,
+        [sectionId === "style" ? "stylePreferences" : "targetScenes"]: [optionId],
+      },
+    }));
   };
 
   const updateSingle = (optionId: string) => {
@@ -1456,6 +1527,7 @@ function PreferencesPage({
       route: "upload",
       photoUrl: "",
       photoName: "",
+      photoDataUrl: undefined,
       preferences: { ...DEFAULT_PREFERENCES },
     }));
     nav("upload");
@@ -1481,9 +1553,13 @@ function PreferencesPage({
             selectedValues={section.id === "style" ? state.preferences.stylePreferences : section.id === "scene" ? state.preferences.targetScenes : [state.preferences.changeIntensity]}
             onToggle={(optionId) => {
               if (section.mode === "single") {
-                updateSingle(optionId);
+                if (section.id === "range") {
+                  updateSingle(optionId);
+                } else {
+                  updatePreference(section.id as "style" | "scene", optionId);
+                }
               } else {
-                updateMultiple(section.id as "style" | "scene", optionId, section.maxSelected);
+                updatePreference(section.id as "style" | "scene", optionId);
               }
             }}
           />
@@ -1570,7 +1646,7 @@ function PreferenceOptionCard({
         <SafeAssetImage className="preference-option__icon" src={option.icon} alt="" aria-hidden="true" />
         <span className="preference-option__label">{option.label}</span>
       <span className="preference-option__check">
-        <SafeAssetImage src={selected ? PREFERENCE_ASSETS.radioSelected : PREFERENCE_ASSETS.radioEmpty} alt="" aria-hidden="true" />
+        <SafeAssetImage src={selected ? PREFERENCE_ASSETS.checkSelected : PREFERENCE_ASSETS.radioEmpty} alt="" aria-hidden="true" />
       </span>
     </button>
   );
@@ -1859,7 +1935,21 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
   if (!report) return <Empty title="还没有生成报告" text="请先选择报告类型并完成生成。" action="选择报告" onClick={() => nav("select")} />;
   const type = REPORT_TYPES.find((item) => item.id === report.type)!;
   const persona = PERSONAS[report.persona];
-  return <main className="result-page"><ResultNavbar nav={nav} onShare={() => setShareOpen(true)} /><ReportCanvas id="report-card" type={type} persona={persona} /><ResultActionBar rights={state.rights} showComprehensiveReport={showComprehensiveReport} onDownload={() => downloadNode("report-card", "aisea-report.png", showToast)} onGenerate={() => nav("select")} onShare={() => setShareOpen(true)} />{shareOpen && <ShareSheet report={report} type={type} photo={state.photoUrl} close={() => setShareOpen(false)} showToast={showToast} />}</main>;
+  const sharePhoto = report.coverImageUrl || state.photoUrl;
+  return (
+    <main className="result-page">
+      <ResultNavbar nav={nav} onShare={() => setShareOpen(true)} />
+      {report.reportImageUrl ? (
+        <article className="report-canvas beauty-report-canvas generated-report-shell" id="report-card">
+          <img className="generated-report-image" src={report.reportImageUrl} alt={`${type.name}生成结果`} />
+        </article>
+      ) : (
+        <ReportCanvas id="report-card" type={type} persona={persona} />
+      )}
+      <ResultActionBar rights={state.rights} showComprehensiveReport={showComprehensiveReport} onDownload={() => downloadNode("report-card", "aisea-report.png", showToast)} onGenerate={() => nav("select")} onShare={() => setShareOpen(true)} />
+      {shareOpen && <ShareSheet report={report} type={type} photo={sharePhoto} close={() => setShareOpen(false)} showToast={showToast} />}
+    </main>
+  );
 }
 
 function ResultNavbar({ nav, onShare }: { nav: (r: Route) => void; onShare: () => void }) {

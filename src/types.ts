@@ -49,9 +49,11 @@ export interface UserReport {
   name: string;
   createdAt: string;
   persona: PersonaId;
+  photoDataUrl?: string;
   reportImageUrl?: string;
   coverImageUrl?: string;
   prompt: string;
+  subjectGender?: "male" | "female" | "neutral" | "unknown";
 }
 
 export type PersonaId = "softFrench" | "koreanSchool" | "coolAiry" | "sweetCool";
