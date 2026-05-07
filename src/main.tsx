@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowLeft,
-  BadgeCheck,
   Camera,
   Check,
   ChevronRight,
@@ -147,7 +146,6 @@ const CONFIRM_GENERATE_ASSETS = {
   camera: new URL("../assets/aisea_icon_06-figure2/14_icon_camera_lens.png", import.meta.url).href,
   sparkle: new URL("../assets/aisea_icon_06-figure2/16_icon_sparkle_change.png", import.meta.url).href,
   clock: new URL("../assets/aisea_icon_06-figure2/17_icon_clock.png", import.meta.url).href,
-  checkbox: new URL("../assets/aisea_icon_06-figure2/18_icon_checkbox_checked.png", import.meta.url).href,
   decoLarge: new URL("../assets/aisea_icon_06-figure2/19_deco_sparkle_large.png", import.meta.url).href,
   decoSmall: new URL("../assets/aisea_icon_06-figure2/20_deco_sparkle_small.png", import.meta.url).href,
 };
@@ -356,7 +354,7 @@ function loadState(): AppState {
       product,
       rights: { topic: 3, comprehensive: 1 },
       reportType: "comprehensive",
-      privacyAccepted: true,
+      privacyAccepted: false,
       progress: 62,
       isGenerating: true,
       photoUrl: CONFIRM_GENERATE_ASSETS.uploadedPhoto,
@@ -490,14 +488,6 @@ function xhsCopy(type: ReportType, personaId: PersonaId) {
 
 #AI形象报告 #变美思路 #个人风格定位 #发型推荐 #普通女生变美`;
 }
-
-const REPORT_INTRO_CONFIG: Record<ReportTypeId, { titlePrefix: string; titleHighlight: string; description: string }> = {
-  comprehensive: { titlePrefix: "本次生成：", titleHighlight: "综合形象报告", description: "将生成发型、发色、色彩、妆容、穿搭和场景建议" },
-  hair: { titlePrefix: "本次生成：", titleHighlight: "发型发色专题报告", description: "将生成发型、发色、避开方向和打理建议" },
-  makeup: { titlePrefix: "本次生成：", titleHighlight: "色彩妆容专题报告", description: "将生成个人色彩、妆容、配色和上镜建议" },
-  outfit: { titlePrefix: "本次生成：", titleHighlight: "穿搭配饰专题报告", description: "将生成穿搭风格、配饰搭配和场景建议" },
-  look: { titlePrefix: "本次生成：", titleHighlight: "场景 Look 专题报告", description: "将生成不同场景的造型和拍照建议" },
-};
 
 const PHOTO_TIPS = {
   goodExample: {
@@ -695,7 +685,7 @@ function App() {
   const page = (() => {
     switch (state.route) {
       case "purchase": return <PurchasePage products={products} nav={nav} showToast={showToast} />;
-      case "success": return <SuccessPage state={state} setState={setState} nav={nav} showToast={showToast} />;
+      case "success": return <SuccessPage state={state} nav={nav} />;
       case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
@@ -941,11 +931,12 @@ function PageTitle({ title, text, nav }: { title: string; text: string; nav: (r:
   return <div className="page-title"><button className="round-back" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><div><h1>{title}</h1><p>{text}</p></div></div>;
 }
 
-function SuccessPage({ state, setState, nav, showToast }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; nav: (r: Route) => void; showToast: (t: string) => void }) {
+function SuccessPage({ state, nav }: { state: AppState; nav: (r: Route) => void }) {
   if (!state.product) return <Empty title="还没有兑换权益" text="请先购买或输入兑换码。" action="去兑换" onClick={() => nav("home")} />;
-  const comprehensiveRemain = state.rights.comprehensive;
-  const topicRemain = state.rights.topic;
-  const full = state.product.id === "full";
+  const isFull = state.product.id === "full";
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const comprehensiveDims = [
     ["发型分析", FULL_CARD_ASSETS.hairAnalysis],
     ["发色建议", FULL_CARD_ASSETS.hairColor],
@@ -961,96 +952,124 @@ function SuccessPage({ state, setState, nav, showToast }: { state: AppState; set
     ["穿搭配饰专题", "穿出风格，提升气质", FULL_CARD_ASSETS.outfit],
     ["场景 Look 专题", "不同场景，轻松变美", FULL_CARD_ASSETS.scene],
   ];
-  const startComprehensive = () => {
-    if (!full || comprehensiveRemain <= 0) return showToast("综合形象报告次数已用完");
-    setState((s) => ({ ...s, reportType: "comprehensive", route: "upload" }));
-  };
-  const startTopic = () => {
-    if (topicRemain <= 0) return showToast("专题报告次数已用完");
-    nav("select");
+  const cards = useMemo(() => {
+    if (isFull) {
+      return [
+        {
+          id: "comprehensive",
+          title: "综合形象报告",
+          subtitle: "全方位解析你的个人形象",
+          count: `×${state.rights.comprehensive}`,
+          icon: FULL_CARD_ASSETS.reportComprehensive,
+          bg: FULL_CARD_ASSETS.comprehensiveCard,
+          tone: "comprehensive" as const,
+        },
+        {
+          id: "topic",
+          title: "专题报告",
+          subtitle: "自由探索你感兴趣的方向",
+          count: `×${state.rights.topic}`,
+          icon: FULL_CARD_ASSETS.reportTopic,
+          bg: FULL_CARD_ASSETS.topicCard,
+          tone: "topic" as const,
+        },
+      ];
+    }
+    return [
+      {
+        id: "topic",
+        title: "专题报告",
+        subtitle: "自由探索你感兴趣的方向",
+        count: `×${state.rights.topic}`,
+        icon: FULL_CARD_ASSETS.reportTopic,
+        bg: FULL_CARD_ASSETS.topicCard,
+        tone: "topic" as const,
+      },
+    ];
+  }, [isFull, state.rights.comprehensive, state.rights.topic]);
+
+  useEffect(() => {
+    setActiveCardIndex(0);
+    railRef.current?.scrollTo({ left: 0, behavior: "auto" });
+  }, [isFull, state.product.id]);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail || cards.length <= 1) return;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      const index = Number((visible.target as HTMLElement).dataset.index);
+      if (!Number.isNaN(index)) setActiveCardIndex(index);
+    }, { root: rail, threshold: [0.6, 0.75] });
+    cardRefs.current.slice(0, cards.length).forEach((card) => card && observer.observe(card));
+    return () => observer.disconnect();
+  }, [cards.length]);
+
+  const focusCard = (index: number) => {
+    const card = cardRefs.current[index];
+    if (!card) return;
+    card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    setActiveCardIndex(index);
   };
 
   return (
     <main className="page full-card-success">
       <PageTitle title="兑换成功" text="开启你的专属形象探索之旅。" nav={nav} />
 
-      <section className="success-hero full-card-hero">
-        <img className="full-card-hero-bg" src={FULL_CARD_ASSETS.heroBg} alt="" />
-        <img className="full-card-medal" src={FULL_CARD_ASSETS.medal} alt="" />
-        <div className="full-card-hero-copy">
-          <h2>已兑换：<span>{state.product.name}</span></h2>
-          <p>开启你的专属形象探索之旅吧！</p>
+      <section className="success-card-selector">
+        <SuccessSectionTitle title={isFull ? "全案探索卡权益" : "专题卡权益"} />
+        <div
+          ref={railRef}
+          className={`success-card-rail ${cards.length > 1 ? "is-dual" : "is-single"}`}
+          aria-label={isFull ? "全案探索卡权益卡片" : "专题卡权益卡片"}
+        >
+          {cards.map((card, index) => (
+            <button
+              key={card.id}
+              ref={(node) => { cardRefs.current[index] = node; }}
+              type="button"
+              data-index={index}
+              className={`success-card-slide ${card.tone} ${activeCardIndex === index ? "is-active" : ""}`}
+              onClick={() => focusCard(index)}
+            >
+              <img className="success-card-bg" src={card.bg} alt="" />
+              <div className="success-card-copy">
+                <div className="success-card-icon"><img src={card.icon} alt="" /></div>
+                <h3>{card.title}</h3>
+                <p>{card.subtitle}</p>
+                <strong>{card.count}</strong>
+                {card.id === "comprehensive" ? (
+                  <div className="success-card-dimensions">
+                    {comprehensiveDims.map(([label, icon]) => (
+                      <span key={label}><img src={icon} alt="" />{label}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="success-card-topics">
+                    {topics.map(([title, text, icon]) => (
+                      <span key={title}><img src={icon} alt="" /><b>{title}</b><small>{text}</small></span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
         </div>
-      </section>
-
-      <section className="benefit-card full-card-panel">
-        <img className="benefit-card-bg" src={FULL_CARD_ASSETS.benefitBg} alt="" />
-        <SuccessSectionTitle title="你的权益清单" />
-        <div className="benefit-row">
-          <div className="benefit-item">
-            <img src={FULL_CARD_ASSETS.reportComprehensive} alt="" />
-            <div><p>综合形象报告</p><strong>× {comprehensiveRemain}</strong></div>
+        {cards.length > 1 && (
+          <div className="success-card-dots" aria-hidden="true">
+            {cards.map((card, index) => <i key={card.id} className={activeCardIndex === index ? "active" : ""} />)}
           </div>
-          <i />
-          <div className="benefit-item">
-            <img src={FULL_CARD_ASSETS.reportTopic} alt="" />
-            <div><p>专题报告</p><strong>× {topicRemain}</strong></div>
-          </div>
-        </div>
-        <div className="success-tip-bar">建议先生成综合形象报告，再继续探索专题</div>
+        )}
       </section>
 
-      <section className="action-section">
-        <SuccessSectionTitle title="立即开启你的专属形象之旅" />
-        <div className="success-action-grid">
-          <button className="success-action-card comprehensive" disabled={!full || comprehensiveRemain <= 0} onClick={startComprehensive}>
-            <span className="success-action-tag">推荐优先</span>
-            <b>{comprehensiveRemain > 0 ? "先生成综合形象报告" : "综合形象报告已用完"}</b>
-            <small>全面了解你的个人形象蓝图</small>
-            <img className="success-action-arrow" src={FULL_CARD_ASSETS.arrowPink} alt="" />
-            <img className="success-action-bg" src={FULL_CARD_ASSETS.comprehensiveCard} alt="" />
-          </button>
-          <button className="success-action-card topic" disabled={topicRemain <= 0} onClick={startTopic}>
-            <b>{topicRemain > 0 ? "先生成专题报告" : "专题报告已用完"}</b>
-            <small>自由探索你感兴趣的方向</small>
-            <img className="success-action-arrow" src={FULL_CARD_ASSETS.arrowOrange} alt="" />
-            <img className="success-action-bg" src={FULL_CARD_ASSETS.topicCard} alt="" />
-          </button>
-        </div>
-      </section>
-
-      <section className="rights-explain">
-        <SuccessSectionTitle title="你的权益说明" />
-        <article className="explain-card comprehensive">
-          <h3>综合形象报告 ×1 <span>全景专享</span></h3>
-          <p>7大维度全面解析，生成你的专属形象蓝图</p>
-          <div className="dimension-grid">{comprehensiveDims.map(([label, icon]) => <div key={label}><img src={icon} alt="" /><span>{label}</span></div>)}</div>
-        </article>
-        <article className="explain-card topic">
-          <h3>专题报告 ×3 <span>可自由选择</span></h3>
-          <p>4大热门专题，聚焦你想深入探索的方向</p>
-          <div className="topic-list">{topics.map(([title, text, icon]) => <div key={title}><img src={icon} alt="" /><b>{title}</b><span>{text}</span></div>)}</div>
-        </article>
-      </section>
-
-      <section className="success-info-grid">
-        <article>
-          <div><h3><img src={FULL_CARD_ASSETS.clock} alt="" />有效期</h3><p>自兑换日起</p><strong>365 天内有效</strong><small>请在有效期内使用完毕</small></div>
-        </article>
-        <article className="gift">
-          <div>
-            <h3><img src={FULL_CARD_ASSETS.giftIcon} alt="" />兑换成功！</h3>
-            <p>你的专属形象探索之旅正式开启</p>
-            <strong>现在可以开始选择报告类型</strong>
-            <small>建议先生成综合形象报告，再继续探索专题</small>
-          </div>
-        </article>
-      </section>
-
-      <section className="bottom-photo-tip">
-        <img src={FULL_CARD_ASSETS.heartTip} alt="" />
-        <p><span>温馨提示：建议在光线充足的环境下拍摄，上传清晰的正脸照片，</span><span>可获得更精准的分析结果哦～</span></p>
-      </section>
+      <div className="success-bottom-actions">
+        <button className="primary-button enabled" onClick={() => nav("select")}>
+          下一步 <Sparkles size={20} />
+        </button>
+      </div>
     </main>
   );
 }
@@ -1137,8 +1156,6 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
   const fileRef = useRef<HTMLInputElement | null>(null);
   const selectionRef = useRef(0);
   const dragRestoreRef = useRef<UploadStatus>("idle");
-  const type = REPORT_TYPES.find((item) => item.id === state.reportType)!;
-  const intro = REPORT_INTRO_CONFIG[state.reportType];
   const canGoNext = state.uploadStatus === "success" && state.photoCheckResult !== "failed" && !state.isGenerating;
   const isUploading = state.uploadStatus === "uploading";
   const uploadCopy = state.uploadStatus === "uploading"
@@ -1150,12 +1167,6 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
   const zoneImage = state.uploadStatus === "success" || state.uploadStatus === "uploading"
     ? state.photoUrl
     : PHOTO_UPLOAD_ASSETS.uploadPlaceholder;
-
-  useEffect(() => {
-    return () => {
-      if (state.photoUrl.startsWith("blob:")) URL.revokeObjectURL(state.photoUrl);
-    };
-  }, [state.photoUrl]);
 
   const openPicker = () => fileRef.current?.click();
 
@@ -1174,6 +1185,7 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
     }
     const previewUrl = URL.createObjectURL(file);
     const selectionId = ++selectionRef.current;
+    if (state.photoUrl.startsWith("blob:")) URL.revokeObjectURL(state.photoUrl);
     updateUploadState({
       uploadStatus: "uploading",
       uploadErrorMessage: undefined,
@@ -1254,7 +1266,7 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
       photoCheckResult: "available",
       uploadErrorMessage: undefined,
       photoName: "示例照片",
-      photoUrl: ASSETS.heroAlt,
+      photoUrl: HOME_ASSETS.heroPerson,
     });
     showToast("已使用示例照片");
   };
@@ -1268,25 +1280,12 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
         <h1>上传照片</h1>
       </header>
 
-      <section className="report-card upload-report-card">
-        <div className="report-icon-wrap">
-          <img src={PHOTO_UPLOAD_ASSETS.reportBadge} alt="" />
-        </div>
-        <div className="report-copy">
-          <p className="report-title"><span>{intro.titlePrefix}</span><strong className="report-highlight">{intro.titleHighlight}</strong></p>
-          <span className="report-desc">{intro.description}</span>
-        </div>
-        <img className="report-card-sparkle report-card-sparkle-left" src={PHOTO_UPLOAD_ASSETS.sparklePair} alt="" />
-        <img className="report-card-sparkle report-card-sparkle-right" src={PHOTO_UPLOAD_ASSETS.sparkleLarge} alt="" />
-      </section>
-
       <section className="photo-tips-card">
         <div className="tips-title"><img src={PHOTO_UPLOAD_ASSETS.tinyStars} alt="" />拍照小贴士</div>
         <div className="example-grid">
           <ExampleCard example={PHOTO_TIPS.goodExample} tone="good" />
           <ExampleCard example={PHOTO_TIPS.badExample} tone="bad" />
         </div>
-        <p className="tips-contrast-summary">正脸、光线清晰 vs 侧脸、遮挡/逆光</p>
         <div className="quick-tip-bar">
           {PHOTO_TIPS.quickTips.map((tip, index) => (
             <div className="quick-tip-item" key={tip.label}>
@@ -1440,6 +1439,7 @@ function PreferencesPage({
 
   const handleReuploadConfirm = () => {
     setReuploadOpen(false);
+    if (state.photoUrl.startsWith("blob:")) URL.revokeObjectURL(state.photoUrl);
     setState((s) => ({
       ...s,
       route: "upload",
@@ -1514,7 +1514,6 @@ function PreferenceSectionCard({
 }) {
   return (
     <section className="preference-section">
-      <SafeAssetImage className="section-corner-decor" src={section.icon} alt="" aria-hidden="true" />
       <div className="section-header">
         <div className="section-title">
           <SafeAssetImage className="section-icon" src={section.icon} alt="" />
@@ -1550,14 +1549,15 @@ function PreferenceOptionCard({
   onClick: () => void;
 }) {
   return (
-    <button
-      className={`preference-option ${selected ? "selected" : ""} ${mode}`}
-      onClick={onClick}
-      style={{ "--option-accent": option.color, "--option-bg": option.bg } as React.CSSProperties}
-    >
-      <SafeAssetImage className="preference-option__tile" src={option.tile || option.icon} alt="" aria-hidden="true" />
-      <SafeAssetImage className="preference-option__icon" src={option.icon} alt="" aria-hidden="true" />
-      <span className="preference-option__label">{option.label}</span>
+      <button
+        className={`preference-option ${selected ? "selected" : ""} ${mode}`}
+        onClick={onClick}
+        type="button"
+        style={{ "--option-accent": option.color, "--option-bg": option.bg } as React.CSSProperties}
+      >
+        <SafeAssetImage className="preference-option__tile" src={option.tile || option.icon} alt="" aria-hidden="true" />
+        <SafeAssetImage className="preference-option__icon" src={option.icon} alt="" aria-hidden="true" />
+        <span className="preference-option__label">{option.label}</span>
       <span className="preference-option__check">
         <SafeAssetImage src={selected ? PREFERENCE_ASSETS.radioSelected : PREFERENCE_ASSETS.radioEmpty} alt="" aria-hidden="true" />
       </span>
@@ -1568,10 +1568,10 @@ function PreferenceOptionCard({
 function BottomActionBar({ saving, onSave, onReupload }: { saving: boolean; onSave: () => void; onReupload: () => void }) {
   return (
     <div className="preference-actions">
-      <button className="save-button" onClick={onSave} disabled={saving}>
+      <button className="save-button" onClick={onSave} disabled={saving} type="button">
         {saving ? "保存中..." : "保存偏好"}
       </button>
-      <button className="reupload-button" onClick={onReupload}>
+      <button className="reupload-button" onClick={onReupload} type="button">
         重新上传
       </button>
     </div>
@@ -1586,8 +1586,8 @@ function ReuploadDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfi
         <h3>重新上传会清空当前偏好，确认继续吗？</h3>
         <p>确认后将返回上传页，重新选择照片和偏好。</p>
         <div className="dialog-actions">
-          <button className="reupload-button" onClick={onCancel}>取消</button>
-          <button className="save-button" onClick={onConfirm}>确认继续</button>
+          <button className="reupload-button" onClick={onCancel} type="button">取消</button>
+          <button className="save-button" onClick={onConfirm} type="button">确认继续</button>
         </div>
       </section>
     </div>
@@ -1603,12 +1603,7 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
   const isInvalidPhoto = state.uploadStatus === "error" || state.photoCheckResult === "failed";
   const hasPhoto = Boolean(state.photoUrl);
   const canGenerate = hasPhoto && !isInvalidPhoto && state.privacyAccepted && state.rights[type.rightKey] > 0 && !state.isGenerating;
-  const photoState: "uploaded" | "empty" | "invalid" = !hasPhoto ? "empty" : isInvalidPhoto ? "invalid" : "uploaded";
-  const photoTitle = photoState === "invalid" ? "照片不合规" : photoState === "empty" ? "未上传照片" : "已上传照片";
-  const photoCopy = photoState === "invalid" ? "请返回修改后重新上传" : photoState === "empty" ? "请先上传一张正面清晰照" : "正面清晰照";
-  const suggestion = photoState === "invalid" ? "建议：选择正脸、光线均匀、五官清晰的照片" : "建议：自然光、妆容清淡、露出额头和耳朵";
-  const privacyText = "我确认上传的是本人照片，知悉并同意用于生成专属形象分析报告。我们将严格保护您的隐私，仅用于报告生成，不会用于其他用途。";
-  const photoSrc = state.photoUrl || CONFIRM_GENERATE_ASSETS.uploadedPhoto;
+  const privacyText = "我知悉并同意本人照片用于生成形象分析报告。我们将严格保护您的隐私，不会用于其他用途。";
 
   return (
     <main className="page confirm-generate-page">
@@ -1623,46 +1618,12 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
         <span />
       </header>
 
-      <section className="confirm-photo-card confirm-fade-in" style={{ animationDelay: "0ms" }}>
-        <div className="confirm-photo-preview">
-          <img src={photoSrc} alt={photoTitle} />
-        </div>
-        <div className="confirm-photo-copy">
-          <div className="confirm-photo-head">
-            <div>
-              <h2>{photoTitle}</h2>
-              <p>{photoCopy}</p>
-            </div>
-            {photoState === "uploaded" && <img className="confirm-status-badge" src={CONFIRM_GENERATE_ASSETS.check} alt="" aria-hidden="true" />}
-          </div>
-          <div className="confirm-photo-type">{type.id === "comprehensive" ? "综合形象报告专用" : type.name}</div>
-          <div className="confirm-photo-divider" />
-          <div className="confirm-photo-tip">
-            <img src={CONFIRM_GENERATE_ASSETS.tip} alt="" aria-hidden="true" />
-            <span>{suggestion}</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="confirm-cost-card confirm-fade-in" style={{ animationDelay: "80ms" }}>
-        <img className="confirm-cost-icon" src={CONFIRM_GENERATE_ASSETS.token} alt="" aria-hidden="true" />
-        <p>
-          <span>本次将消耗：</span>
-          <strong>{type.id === "comprehensive" ? "综合形象报告 × 1" : "专题报告 × 1"}</strong>
-        </p>
-        <div className="confirm-cost-sparkles" aria-hidden="true">
-          <img src={CONFIRM_GENERATE_ASSETS.decoSmall} alt="" />
-          <img src={CONFIRM_GENERATE_ASSETS.decoLarge} alt="" />
-        </div>
-      </section>
-
-      <section className="confirm-report-card confirm-fade-in" style={{ animationDelay: "120ms" }}>
+      <section className="confirm-report-card confirm-fade-in" style={{ animationDelay: "0ms" }}>
         <div className="confirm-report-head">
           <img className="confirm-report-illus left" src={CONFIRM_GENERATE_ASSETS.report} alt="" aria-hidden="true" />
           <div className="confirm-report-copy">
             <div className="confirm-report-title-row">
               <h2>{type.name}</h2>
-              <span>全案专享</span>
             </div>
             <p>{type.subtitle}</p>
           </div>
@@ -1705,17 +1666,17 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
       <button
         type="button"
         className={`confirm-privacy-row confirm-fade-in ${state.privacyAccepted ? "checked" : ""}`}
-        style={{ animationDelay: "160ms" }}
+        style={{ animationDelay: "80ms" }}
         onClick={() => setState((s) => ({ ...s, privacyAccepted: !s.privacyAccepted }))}
       >
-        <span className="confirm-checkbox">{state.privacyAccepted && <img src={CONFIRM_GENERATE_ASSETS.checkbox} alt="" aria-hidden="true" />}</span>
+        <span className="confirm-checkbox">{state.privacyAccepted && <Check size={16} strokeWidth={3} aria-hidden="true" />}</span>
         <span className="confirm-privacy-copy">
           <strong>我确认上传的是本人照片</strong>
           <span>{privacyText}</span>
         </span>
       </button>
 
-      <div className="confirm-bottom-actions confirm-fade-in" style={{ animationDelay: "200ms" }}>
+      <div className="confirm-bottom-actions confirm-fade-in" style={{ animationDelay: "120ms" }}>
         <button className="confirm-primary-btn" disabled={!canGenerate} onClick={startGenerate}>
           <span>{state.isGenerating ? "生成中..." : "开始生成报告"}</span>
           <Sparkles size={18} />
