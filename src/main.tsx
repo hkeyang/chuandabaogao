@@ -285,6 +285,7 @@ interface AppState {
   photoCheckResult?: PhotoCheckResult;
   uploadErrorMessage?: string;
   isGenerating: boolean;
+  generationError?: string;
 }
 
 const LS_KEY = "aisea-react-state-v1";
@@ -370,6 +371,7 @@ function loadState(): AppState {
     photoCheckResult: undefined,
     uploadErrorMessage: undefined,
     isGenerating: false,
+    generationError: undefined,
   };
   if (params.get("demo") === "full") {
     const product = DEFAULT_PRODUCTS.find((item) => item.id === "full");
@@ -412,6 +414,7 @@ function loadState(): AppState {
       photoCheckResult: saved.photoCheckResult,
       uploadErrorMessage: saved.uploadErrorMessage,
       isGenerating: Boolean(saved.isGenerating),
+      generationError: typeof saved.generationError === "string" ? saved.generationError : undefined,
       photoDataUrl: typeof saved.photoDataUrl === "string" ? saved.photoDataUrl : undefined,
     } : fallback;
   } catch {
@@ -490,7 +493,19 @@ ${moduleLines.join("\n")}
 - 整体像“小红书种草风 + 高级形象顾问报告 + 杂志信息图”，不要像后台表格。`;
 }
 
-function xhsCopy(type: ReportType, personaId: PersonaId) {
+function xhsCopy(type: ReportType, personaId: PersonaId, subjectGender: UserReport["subjectGender"] = "unknown") {
+  if (subjectGender === "male") {
+    return `我生成了一份 ${type.name}，重点看的是发型、穿搭和整体形象协调度。
+
+这份报告会结合照片给出更适合男性或中性男性风格的建议，不会套用女性化模板。
+
+我最想参考的是：
+1. 发型和发色怎么更精神
+2. 日常 / 通勤 / 拍照场景怎么穿
+3. 哪些造型元素需要谨慎尝试
+
+#AI形象报告 #男生变帅思路 #发型建议 #穿搭参考`;
+  }
   const persona = PERSONAS[personaId];
   if (type.id !== "comprehensive") {
     return `我生成了一份 ${type.name}，感觉很适合变美前参考。
@@ -685,7 +700,7 @@ function App() {
     if (!state.privacyAccepted) return showToast("请先确认照片授权");
     if (state.rights[reportType.rightKey] <= 0) return showToast("当前权益不足，请购买新券码");
     generationSeqRef.current += 1;
-    setState((s) => ({ ...s, progress: 8, route: "progress", isGenerating: true }));
+    setState((s) => ({ ...s, progress: 8, route: "progress", isGenerating: true, generationError: undefined }));
   }
 
   useEffect(() => {
@@ -729,6 +744,8 @@ function App() {
         });
         if (!response.ok) throw new Error(`generate failed with HTTP ${response.status}`);
         const data = await response.json();
+        if (data.status && data.status !== "completed") throw new Error(data.error || "生成失败，请重试");
+        if (!data.report_image_url) throw new Error("报告图生成失败，请重新生成");
         if (generationId !== generationSeqRef.current) return;
         const rightKey = type.rightKey;
         setState((latest) => {
@@ -744,6 +761,8 @@ function App() {
             reportImageUrl: data.report_image_url || "",
             coverImageUrl: data.xhs_cover_image_url || "",
             prompt: data.prompt || prompt,
+            status: data.status || "completed",
+            error: data.error || "",
             subjectGender: data.subject_gender || "unknown",
           };
           return {
@@ -752,6 +771,7 @@ function App() {
             rights,
             reports: [report, ...latest.reports],
             isGenerating: false,
+            generationError: undefined,
           };
         });
         window.clearInterval(timer);
@@ -765,8 +785,9 @@ function App() {
         window.clearInterval(timer);
         setState((latest) => ({
           ...latest,
-          progress: 100,
+          progress: Math.min(latest.progress, 94),
           isGenerating: false,
+          generationError: error instanceof Error ? error.message : "生成失败，请重试",
         }));
         showToast(error instanceof Error ? error.message : "生成失败，请重试");
       }
@@ -791,7 +812,7 @@ function App() {
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} />;
-      case "progress": return <ProgressPage progress={state.progress} hasReport={state.reports.length > 0} nav={nav} showToast={showToast} />;
+      case "progress": return <ProgressPage progress={state.progress} hasReport={!state.isGenerating && state.reports.length > 0} error={state.generationError} nav={nav} showToast={showToast} />;
       case "result": return <ResultPage state={state} showComprehensiveReport={showComprehensiveReport} nav={nav} showToast={showToast} />;
       case "admin": return <AdminPage state={state} setState={setState} updateAdmin={updateAdmin} showToast={showToast} />;
       default: return <HomePage products={products} state={state} nav={nav} redeem={redeem} showToast={showToast} />;
@@ -1774,13 +1795,18 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
   );
 }
 
-function ProgressPage({ progress, hasReport, nav, showToast }: { progress: number; hasReport: boolean; nav: (r: Route) => void; showToast: (t: string) => void }) {
+function ProgressPage({ progress, hasReport, error, nav, showToast }: { progress: number; hasReport: boolean; error?: string; nav: (r: Route) => void; showToast: (t: string) => void }) {
   const displayProgress = useAnimatedNumber(progress, 720);
   const percent = Math.round(displayProgress);
   const ready = progress >= 100 && hasReport;
-  const statusText = ready ? "进度已同步" : "生成中...";
-  const bottomLabel = ready ? "查看报告" : "稍后再看";
+  const failed = Boolean(error);
+  const statusText = failed ? "生成失败" : ready ? "进度已同步" : "生成中...";
+  const bottomLabel = failed ? "重新生成" : ready ? "查看报告" : "稍后再看";
   const handleBottomClick = () => {
+    if (failed) {
+      nav("confirm");
+      return;
+    }
     if (ready) {
       nav("result");
       return;
@@ -1854,6 +1880,7 @@ function ProgressPage({ progress, hasReport, nav, showToast }: { progress: numbe
           <div className="progress-ring-content">
             <div className={`progress-percent ${ready ? "is-100" : ""}`} aria-label={`${percent} percent`}>{percent}<span>%</span></div>
             <div className="progress-status">{statusText}</div>
+            {failed && <div className="progress-error-text">{error}</div>}
           </div>
           <span className="progress-ring-dot" style={{ "--progress": progress } as React.CSSProperties} />
         </section>
@@ -1939,16 +1966,15 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
   const type = REPORT_TYPES.find((item) => item.id === report.type)!;
   const persona = PERSONAS[report.persona];
   const sharePhoto = report.coverImageUrl || state.photoUrl;
+  if (!report.reportImageUrl) {
+    return <Empty title="报告生成失败" text={report.error || "没有拿到完整报告图，请重新生成。"} action="重新生成" onClick={() => nav("confirm")} />;
+  }
   return (
     <main className="result-page">
       <ResultNavbar nav={nav} onShare={() => setShareOpen(true)} />
-      {report.reportImageUrl ? (
-        <article className="report-canvas beauty-report-canvas generated-report-shell" id="report-card">
-          <img className="generated-report-image" src={report.reportImageUrl} alt={`${type.name}生成结果`} />
-        </article>
-      ) : (
-        <ReportCanvas id="report-card" type={type} persona={persona} />
-      )}
+      <article className="report-canvas beauty-report-canvas generated-report-shell" id="report-card">
+        <img className="generated-report-image" src={report.reportImageUrl} alt={`${type.name}生成结果`} />
+      </article>
       <ResultActionBar rights={state.rights} showComprehensiveReport={showComprehensiveReport} onDownload={() => downloadNode("report-card", "aisea-report.png", showToast)} onGenerate={() => nav("select")} onShare={() => setShareOpen(true)} />
       {shareOpen && <ShareSheet report={report} type={type} photo={sharePhoto} close={() => setShareOpen(false)} showToast={showToast} />}
     </main>
@@ -2038,7 +2064,7 @@ function ChecklistSection() {
 
 function ShareSheet({ report, type, photo, close, showToast }: { report: UserReport; type: ReportType; photo: string; close: () => void; showToast: (t: string) => void }) {
   const persona = PERSONAS[report.persona];
-  const copy = xhsCopy(type, report.persona);
+  const copy = xhsCopy(type, report.persona, report.subjectGender);
   const copyShare = async () => {
     try {
       await navigator.clipboard.writeText(copy);
@@ -2047,7 +2073,7 @@ function ShareSheet({ report, type, photo, close, showToast }: { report: UserRep
       showToast("当前浏览器不支持自动复制，请长按文案手动复制");
     }
   };
-  return <div className="sheet-backdrop" onClick={close}><section className="share-sheet" onClick={(e) => e.stopPropagation()}><header><div><h2>分享到小红书</h2><p>已为你准备好封面图、完整报告图和种草文案</p></div><button onClick={close}>×</button></header><div className="share-grid"><XhsCover persona={persona} photo={photo} /><div className="share-steps"><StepButton n={1} icon={<ImageDown />} title="保存小红书封面图" text="建议作为笔记第 1 张图" onClick={() => showToast("移动端请长按封面图保存到相册")} /><StepButton n={2} icon={<Download />} title="保存完整报告图" text="建议作为笔记第 2 张图" onClick={() => showToast("移动端请长按完整报告图保存")} /><StepButton n={3} icon={<Clipboard />} title="复制小红书文案" text="打开小红书后直接粘贴" onClick={copyShare} /><StepButton n={4} icon={<ExternalLink />} title="打开小红书发布笔记" text="若未自动打开，请手动打开" onClick={() => { window.location.href = "xhsdiscover://"; setTimeout(() => showToast("如未自动打开，请手动打开小红书"), 800); }} /><textarea readOnly value={copy} /></div></div></section></div>;
+  return <div className="sheet-backdrop" onClick={close}><section className="share-sheet" onClick={(e) => e.stopPropagation()}><header><div><h2>分享到小红书</h2><p>已为你准备好封面图、完整报告图和种草文案</p></div><button onClick={close}>×</button></header><div className="share-grid">{report.coverImageUrl ? <img className="xhs-generated-cover" src={report.coverImageUrl} alt="小红书封面图" /> : <XhsCover persona={persona} photo={photo} />}<div className="share-steps"><StepButton n={1} icon={<ImageDown />} title="保存小红书封面图" text="建议作为笔记第 1 张图" onClick={() => showToast("移动端请长按封面图保存到相册")} /><StepButton n={2} icon={<Download />} title="保存完整报告图" text="建议作为笔记第 2 张图" onClick={() => showToast("移动端请长按完整报告图保存")} /><StepButton n={3} icon={<Clipboard />} title="复制小红书文案" text="打开小红书后直接粘贴" onClick={copyShare} /><StepButton n={4} icon={<ExternalLink />} title="打开小红书发布笔记" text="若未自动打开，请手动打开" onClick={() => { window.location.href = "xhsdiscover://"; setTimeout(() => showToast("如未自动打开，请手动打开小红书"), 800); }} /><textarea readOnly value={copy} /></div></div></section></div>;
 }
 
 function XhsCover({ persona, photo }: { persona: typeof PERSONAS.softFrench; photo: string }) {

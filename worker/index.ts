@@ -187,8 +187,10 @@ async function imageGenerate(env: Env, payload: Json, prompt: string) {
 }
 
 async function storeB64(env: Env, key: string, b64: string, type = "image/png") {
+  const bucket = (env as { R2?: R2Bucket }).R2;
+  if (!bucket) throw new Error("R2 binding is not configured");
   const binary = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0));
-  await env.R2.put(key, binary, { httpMetadata: { contentType: type } });
+  await bucket.put(key, binary, { httpMetadata: { contentType: type } });
   return `${env.R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
 }
 
@@ -281,15 +283,21 @@ async function handleApi(request: Request, env: Env, url: URL) {
       if (typeof image.xhs_cover_b64_json === "string") {
         coverImageUrl = await storeB64(env, `reports/${reportId}-xhs-cover.png`, image.xhs_cover_b64_json);
       }
+      if (!reportImageUrl) {
+        throw new Error("image generation completed without report image");
+      }
     } catch (err) {
       status = "failed";
       error = err instanceof Error ? err.message : "image generation failed";
     }
-    await env.DB.prepare(`INSERT INTO reports
-      (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_url, xhs_cover_image_url, created_at, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`)
-      .bind(reportId, String(input.client_id || ""), String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "轻法式白月光"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageUrl, coverImageUrl, now(), status === "completed" ? now() : null)
-      .run();
+    const db = (env as { DB?: D1Database }).DB;
+    if (db) {
+      await db.prepare(`INSERT INTO reports
+        (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_url, xhs_cover_image_url, created_at, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`)
+        .bind(reportId, String(input.client_id || ""), String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "轻法式白月光"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageUrl, coverImageUrl, now(), status === "completed" ? now() : null)
+        .run();
+    }
     return json({ report_id: reportId, status, error, prompt, subject_gender: subjectGender, report_image_url: reportImageUrl, xhs_cover_image_url: coverImageUrl });
   }
 

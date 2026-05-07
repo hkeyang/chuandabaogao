@@ -53,6 +53,8 @@ export interface UserReport {
   reportImageUrl?: string;
   coverImageUrl?: string;
   prompt: string;
+  status?: "completed" | "failed";
+  error?: string;
   subjectGender?: "male" | "female" | "neutral" | "unknown";
 }
 

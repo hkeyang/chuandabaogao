@@ -318,12 +318,7 @@ ${buildTypePrompt(reportType)}
 
 async function generateImageAssets(input, reportId, prompt) {
   if (!imageEndpoint) {
-    return {
-      provider: "local-svg-fallback",
-      report_image_url: `/api/reports/${reportId}/report.svg`,
-      xhs_cover_image_url: `/api/reports/${reportId}/cover.svg`,
-      xhs_summary_image_url: `/api/reports/${reportId}/cover.svg`,
-    };
+    throw new Error("image provider is not configured");
   }
 
   const headers = { "content-type": "application/json" };
@@ -531,17 +526,17 @@ async function handleApi(req, res, url) {
       assets = await generateImageAssets(body, reportId, prompt);
     } catch (error) {
       assets = {
-        provider: "local-svg-fallback",
+        provider: "external-image-provider",
         provider_error: error.message,
-        report_image_url: `/api/reports/${reportId}/report.svg`,
-        xhs_cover_image_url: `/api/reports/${reportId}/cover.svg`,
-        xhs_summary_image_url: `/api/reports/${reportId}/cover.svg`,
+        report_image_url: "",
+        xhs_cover_image_url: "",
+        xhs_summary_image_url: "",
       };
     }
     const report = {
       report_id: reportId,
-      status: "completed",
-      progress: 100,
+      status: assets.report_image_url ? "completed" : "failed",
+      progress: assets.report_image_url ? 100 : 0,
       report_type: body.report_type || "comprehensive",
       style_persona: body.style_persona || "轻法式白月光",
       style_keywords: ["清透", "温柔", "低饱和", "松弛感"],
