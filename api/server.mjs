@@ -222,26 +222,34 @@ function buildShareCopy(persona = "轻法式白月光") {
 #AI形象报告 #变美思路 #个人风格定位 #发型推荐 #普通女生变美`;
 }
 
+function shareActions() {
+  return {
+    xhs: { label: "打开小红书", deep_link: "xhsdiscover://", hint: "若未自动打开，请手动打开小红书" },
+    wechat: { label: "打开微信", deep_link: "weixin://dl/chat", hint: "可先复制文案，再发给朋友或群聊" },
+    moments: { label: "打开朋友圈", deep_link: "weixin://dl/moments", hint: "如未跳转，可先进入微信后手动发布朋友圈" },
+  };
+}
+
 function buildTypePrompt(reportType) {
   const prompts = {
     comprehensive: [
       "1. 风格人设与形象关键词：给出温和正向的一句话结论。",
-      "2. 发型推荐：真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替。",
+      "2. 发型推荐：真实发型缩略图、刘海、长度、卷度、层次，不能用普通色块代替；同一模块内的人物必须保持同一肤色、同一光感和干净正脸。",
       "3. 发色推荐：真实头发质感色板，例如黑茶色、冷茶棕、摩卡棕、奶茶棕。",
       "4. 个人色彩：推荐色盘与谨慎色盘，颜色名称要准确。",
       "5. 妆容建议：底妆、眉形、眼妆、腮红、唇色。",
       "6. 穿搭配饰：服装、鞋、包、首饰、发饰和 3 套 OOTD。",
       "7. 场景 Look：日常、通勤/上学、拍照、聚会。",
-      "8. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
+      "8. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达，并输出图片化避雷卡片。",
       "9. 今日可执行的 3 个变美动作和小红书分享金句。",
     ],
     hair: [
       "1. 脸部轮廓、发质状态、发量感、当前发型气质。",
-      "2. 推荐发型：真实缩略图，展示长度、刘海、卷度、层次。",
-      "3. 发色推荐：展示低饱和、自然过渡的发色质感。",
+      "2. 推荐发型：3-4 张真实头部/半身缩略图，展示长度、刘海、卷度、层次；头像必须是同一人物、同一肤色、同一光感，禁止黑阴影和肤色漂移。",
+      "3. 发色推荐：4-6 张同一人物正脸或半身上脸效果，展示低饱和、自然过渡的发色质感。",
       "4. 刘海 / 长度 / 卷度建议。",
-      "5. 谨慎尝试方向。",
-      "6. 理发师沟通关键词和今日专属造型灵感。",
+      "5. 谨慎尝试方向，用图片化避雷发型卡片展示。",
+      "6. 理发师沟通关键词和今日专属造型灵感，打理方式也要做成图文卡片。",
     ],
     makeup: [
       "1. 个人色彩倾向：冷暖、明度、饱和度、对比度。",
@@ -313,6 +321,9 @@ ${buildTypePrompt(reportType)}
 - 不要低俗、暴露、成人化、擦边姿势。
 - 不要医学诊断式表达。
 - 不要把发型、妆容、穿搭、场景模块混乱摆放。
+- 发型专题的人物主图必须是清爽背景和正脸，不要大黑阴影、脏背景或脸部失真。
+- 推荐发型和发色上脸效果必须保持同一肤色、同一光感，不能因为换发型而把人画黑。
+- 雷区提醒和打理方式要有图片式卡片，方便用户一眼理解。
 - 不要生成乱码文字、假中文、随机符号或不可读小字。`;
 }
 
@@ -406,6 +417,47 @@ function buildCoverSvg(report = {}) {
   <rect x="112" y="1245" width="856" height="72" rx="36" fill="url(#gold)"/>
   <text x="260" y="1294" fill="#fff" font-size="34" font-weight="800">适合自己的风格，比盲目跟风更重要</text>
 </svg>`;
+}
+
+function buildSummarySvg(report = {}) {
+  const persona = escapeXml(report.style_persona || "轻法式白月光");
+  const photo = report.source_photo_url || report.user_photo_url || "";
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1440" viewBox="0 0 1080 1440">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff8fb"/>
+      <stop offset="0.58" stop-color="#fffdf9"/>
+      <stop offset="1" stop-color="#ffece4"/>
+    </linearGradient>
+    <style>
+      text { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; fill: #604944; }
+      .serif { font-family: "Songti SC", "STSong", serif; font-weight: 800; fill: #6d4d44; }
+      .title { fill: #ff3f7f; font-size: 34px; font-weight: 850; }
+      .body { fill: #6c5350; font-size: 30px; }
+      .small { fill: #8e7470; font-size: 24px; }
+    </style>
+  </defs>
+  <rect width="1080" height="1440" fill="url(#bg)"/>
+  <rect x="58" y="58" width="964" height="1324" rx="56" fill="#fffdf9" stroke="#f1e1e4" stroke-width="3"/>
+  <rect x="104" y="104" width="872" height="272" rx="42" fill="#fff5f8" stroke="#f2dce2" stroke-width="3"/>
+  ${photoFrame("summaryPhoto", photo, 720, 128, 210, 224, 28)}
+  <text x="132" y="172" class="title">AI 形象报告摘要</text>
+  <text x="132" y="260" class="serif" font-size="72">${persona}</text>
+  <text x="132" y="322" class="small">先看方向，再保存完整报告慢慢对照。</text>
+  ${summaryModule(104, 430, "01 发型发色", "保持清爽正脸和同一肤色，优先自然层次、低饱和发色。")}
+  ${summaryModule(104, 610, "02 雷区提醒", "谨慎尝试厚重刘海、高饱和发色和过度修饰。")}
+  ${summaryModule(104, 790, "03 打理方式", "洗护、吹风、造型品和理发师沟通关键词都要可执行。")}
+  ${summaryModule(104, 970, "04 分享金句", "不是大改造，而是把整体氛围变干净、轻盈、自然。")}
+  <rect x="104" y="1200" width="872" height="86" rx="43" fill="#ff3f7f"/>
+  <text x="210" y="1256" fill="#fff" font-size="32" font-weight="850">封面图 + 摘要图 + 完整报告图都已准备好</text>
+</svg>`;
+}
+
+function summaryModule(x, y, title, line) {
+  return `<rect x="${x}" y="${y}" width="872" height="130" rx="30" fill="#ffffff" stroke="#f1e1e4" stroke-width="3"/>
+  <text x="${x + 34}" y="${y + 48}" class="title">${escapeXml(title)}</text>
+  <text x="${x + 34}" y="${y + 94}" class="body">${escapeXml(line)}</text>`;
 }
 
 function buildReportSvg(report = {}) {
@@ -526,11 +578,11 @@ async function handleApi(req, res, url) {
       assets = await generateImageAssets(body, reportId, prompt);
     } catch (error) {
       assets = {
-        provider: "external-image-provider",
+        provider: "local-svg-fallback",
         provider_error: error.message,
-        report_image_url: "",
-        xhs_cover_image_url: "",
-        xhs_summary_image_url: "",
+        report_image_url: `/api/reports/${reportId}/report.svg`,
+        xhs_cover_image_url: `/api/reports/${reportId}/cover.svg`,
+        xhs_summary_image_url: `/api/reports/${reportId}/summary.svg`,
       };
     }
     const report = {
@@ -576,28 +628,35 @@ async function handleApi(req, res, url) {
     return true;
   }
 
-  const assetMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/(cover|report)\.svg$/);
+  const assetMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/(cover|summary|report)\.svg$/);
   if (req.method === "GET" && assetMatch) {
     const report = store.reports[assetMatch[1]] || { report_id: assetMatch[1], style_persona: "轻法式白月光" };
-    svg(res, assetMatch[2] === "cover" ? buildCoverSvg(report) : buildReportSvg(report));
+    const svgBody = assetMatch[2] === "cover"
+      ? buildCoverSvg(report)
+      : assetMatch[2] === "summary"
+        ? buildSummarySvg(report)
+        : buildReportSvg(report);
+    svg(res, svgBody);
     return true;
   }
 
   if (req.method === "POST" && url.pathname === "/api/reports/prepare-xhs-share") {
     const body = (await readJson(req)) || {};
     const reportId = body.report_id || `rpt_${Date.now()}`;
-    const persona = body.style_persona || "轻法式白月光";
+    const report = store.reports[reportId] || {};
+    const persona = body.style_persona || report.style_persona || "轻法式白月光";
     const share = {
       report_id: reportId,
-      report_type: body.report_type || "comprehensive",
+      report_type: body.report_type || report.report_type || "comprehensive",
       style_persona: persona,
-      cover_image_url: `/api/reports/${reportId}/cover.svg`,
-      report_image_url: `/api/reports/${reportId}/report.svg`,
-      summary_image_url: `/api/reports/${reportId}/cover.svg`,
+      cover_image_url: report.xhs_cover_image_url || `/api/reports/${reportId}/cover.svg`,
+      report_image_url: report.report_image_url || `/api/reports/${reportId}/report.svg`,
+      summary_image_url: report.xhs_summary_image_url || `/api/reports/${reportId}/summary.svg`,
       share_title: `AI说我是「${persona}」路线，感觉有点准？`,
       share_text: buildShareCopy(persona),
       hashtags: ["AI形象报告", "变美思路", "个人风格定位", "发型推荐"],
       copy_text: buildShareCopy(persona),
+      platform_actions: shareActions(),
       prepared_at: new Date().toISOString(),
     };
     store.shares.push({

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowLeft,
@@ -100,7 +100,7 @@ const FULL_CARD_ASSETS = {
 
 const CHOOSE_REPORT_ASSETS = {
   badge: new URL("../assets/aisea_icon_03-choose report/03_全案专享徽章.png", import.meta.url).href,
-  comprehensivePreview: new URL("../assets/aisea_icon_01/hair-hero-user01.png", import.meta.url).href,
+  comprehensivePreview: new URL("../assets/aisea_icon_03-choose report/01_综合形象报告_无棋盘格.png", import.meta.url).href,
   hair: new URL("../assets/aisea_icon_03-choose report/02_发型发色专题_无棋盘格.png", import.meta.url).href,
   makeup: new URL("../assets/aisea_icon_03-choose report/03_色彩妆容专题_无棋盘格.png", import.meta.url).href,
   outfit: new URL("../assets/aisea_icon_03-choose report/04_穿搭配饰专题_无棋盘格.png", import.meta.url).href,
@@ -445,12 +445,12 @@ function buildPrompt(type: ReportType, personaId: PersonaId, prefs: AppState["pr
   const moduleLines = type.id === "comprehensive"
     ? [
         "1. 风格定位：先给出一句清晰、可分享的形象结论。",
-        "2. 发型发色：给真实发型缩略图、长度、层次、打理方式和自然发色质感。",
+        "2. 发型发色：给真实发型缩略图、长度、层次、打理方式和自然发色质感；同一模块内的人物必须保持同一肤色、同一光感和干净正脸，不能越画越黑。",
         "3. 个人色彩：推荐色盘、谨慎色盘和适合上身的颜色名称。",
         "4. 面部优化：男性写眉形修整、皮肤清爽度、胡须/鬓角、眼镜框型；女性写底妆、眉形、眼妆、腮红、唇色。",
         "5. 穿搭配饰：男性写上衣、外套、裤装、鞋、包、腕表、眼镜、帽子；女性写服装、鞋包、首饰、发饰和 3 套 OOTD。",
         "6. 场景 Look：日常、通勤/上学、拍照、聚会，每个场景给具体单品和氛围。",
-        "7. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
+        "7. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达，并输出可视化图片式避雷示意，不要只堆文字。",
         "8. 今日可执行的 3 个变美动作和小红书分享金句。",
       ]
     : topicModuleLines(type);
@@ -502,10 +502,10 @@ function topicModuleLines(type: ReportType) {
   if (type.id === "hair") {
     return [
       "1. 脸部轮廓、发质状态、发量感、当前发型气质。",
-      "2. 推荐发型：真实头部/半身缩略图，展示长度、刘海或额前区、卷度、层次和侧后区处理。",
-      "3. 发色推荐：必须包含 4-6 张同一人物正脸或半身人像效果示意图，分别展示不同发色上脸效果；旁边再放真实头发质感色卡。",
-      "4. 打理方式：洗护、吹风方向、造型品和理发师沟通关键词。",
-      "5. 雷区提醒和今日行动清单。",
+      "2. 推荐发型：真实头部/半身缩略图，展示长度、刘海或额前区、卷度、层次和侧后区处理；3 张头像必须保持同一肤色、同一光感和干净正脸，不要做出黑阴影或肤色漂移。",
+      "3. 发色推荐：必须包含 4-6 张同一人物正脸或半身人像效果示意图，分别展示不同发色上脸效果；旁边再放真实头发质感色卡，强调和原照片是同一张脸。",
+      "4. 打理方式：洗护、吹风方向、造型品和理发师沟通关键词，要做成图文卡片。",
+      "5. 雷区提醒和今日行动清单，也要做成图片化卡片，不要只堆文字。",
     ];
   }
   if (type.id === "makeup") {
@@ -545,7 +545,7 @@ function topicBoundaryRules(typeId: ReportType["id"]) {
 function topicVisualRules(typeId: ReportType["id"]) {
   const rules: Record<string, string> = {
     comprehensive: "- 综合报告图片构成：人物主视觉、发型发色、色彩面部、穿搭配饰、场景 Look 都要覆盖。",
-    hair: "- 发型发色专题图片构成：顶部人物主视觉 1 张；推荐发型 3-4 张头部/半身图；发色上脸效果 4-6 张同一人物正脸或半身图；发色质感色卡 4-6 个。禁止出现穿搭套装、鞋包、腕表、OOTD 或全身搭配模块。",
+    hair: "- 发型发色专题图片构成：顶部人物主视觉 1 张，保持干净正脸和清爽背景；推荐发型 3-4 张头部/半身图，要求同一人物、同一肤色、同一光感；发色上脸效果 4-6 张同一人物正脸或半身图；发色质感色卡 4-6 个；雷区提醒和打理方式要做成图文卡片。禁止出现穿搭套装、鞋包、腕表、OOTD 或全身搭配模块。",
     makeup: "- 色彩面部专题图片构成：顶部人物主视觉 1 张；面部近景效果图 5-8 张；色盘 2-4 组；眉形/肤色/眼周/胡须鬓角或妆容细节局部图若干。禁止出现整套穿搭、鞋包、服装平铺和 OOTD 模块。",
     outfit: "- 穿搭配饰专题图片构成：3 套 OOTD 全身图、核心单品图、鞋包配饰图和版型/颜色说明。",
     look: "- 场景 Look 专题图片构成：不要做成只有 4 张场景图的四宫格；必须先把日常、通勤/上学、拍照、聚会四个区块全部放出来，每个区块 2 张人物图，共至少 8 张人物场景照片或全身/半身 Look 图。可以补少量单品图，但不能只放衣服平铺。整体要像一本场景造型 mini lookbook。",
@@ -733,7 +733,7 @@ function App() {
       rights: { ...product.rights },
       reportType: product.rights.comprehensive > 0 ? "comprehensive" : "hair",
       reports: [],
-      route: "success",
+      route: "select",
       admin: { ...s.admin, coupons: updatedCoupons, auditLogs: audit(s.admin.auditLogs, "system", "coupon.redeem", `${code} 兑换 ${product.name}`) },
     }));
     showToast("兑换成功");
@@ -819,6 +819,7 @@ function App() {
             photoDataUrl: latest.photoDataUrl,
             reportImageUrl: data.report_image_url || "",
             coverImageUrl: data.xhs_cover_image_url || "",
+            summaryImageUrl: data.xhs_summary_image_url || data.summary_image_url || data.xhs_cover_image_url || "",
             prompt: data.prompt || prompt,
             status: data.status || "completed",
             error: data.error || "",
@@ -866,7 +867,7 @@ function App() {
   const page = (() => {
     switch (state.route) {
       case "purchase": return <PurchasePage products={products} nav={nav} showToast={showToast} />;
-      case "success": return <SuccessPage state={state} nav={nav} />;
+      case "success": return <SuccessRedirectPage nav={nav} />;
       case "select": return <SelectPage rights={state.rights} showComprehensiveReport={showComprehensiveReport} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
@@ -1100,158 +1101,25 @@ function PageTitle({ title, text, nav }: { title: string; text: string; nav: (r:
   return <div className="page-title"><button className="round-back" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><div><h1>{title}</h1><p>{text}</p></div></div>;
 }
 
-function SuccessPage({ state, nav }: { state: AppState; nav: (r: Route) => void }) {
-  if (!state.product) return <Empty title="还没有兑换权益" text="请先购买或输入兑换码。" action="去兑换" onClick={() => nav("home")} />;
-  const isFull = state.product.id === "full";
-  const [activeCardIndex, setActiveCardIndex] = useState(0);
-  const railRef = useRef<HTMLDivElement | null>(null);
-  const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const comprehensiveDims = [
-    ["发型分析", FULL_CARD_ASSETS.hairAnalysis],
-    ["发色建议", FULL_CARD_ASSETS.hairColor],
-    ["色彩诊断", FULL_CARD_ASSETS.colorDiagnosis],
-    ["面部建议", FULL_CARD_ASSETS.makeup],
-    ["穿搭方案", FULL_CARD_ASSETS.outfit],
-    ["配饰推荐", FULL_CARD_ASSETS.accessory],
-    ["场景建议", FULL_CARD_ASSETS.scene],
-  ];
-  const topics = [
-    ["发型改造专题", "找到最适合你的发型", FULL_CARD_ASSETS.hairAnalysis],
-    ["色彩面部专题", "找到你的专属色彩与面部清爽方向", FULL_CARD_ASSETS.colorDiagnosis],
-    ["穿搭配饰专题", "穿出风格，提升气质", FULL_CARD_ASSETS.outfit],
-    ["场景 Look 专题", "不同场景，轻松变美", FULL_CARD_ASSETS.scene],
-  ];
-  const cards = useMemo(() => {
-    if (isFull) {
-      return [
-        {
-          id: "comprehensive",
-          title: "综合形象报告",
-          subtitle: "全方位解析你的个人形象",
-          count: `×${state.rights.comprehensive}`,
-          icon: FULL_CARD_ASSETS.reportComprehensive,
-          bg: FULL_CARD_ASSETS.comprehensiveCard,
-          tone: "comprehensive" as const,
-        },
-        {
-          id: "topic",
-          title: "专题报告",
-          subtitle: "自由探索你感兴趣的方向",
-          count: `×${state.rights.topic}`,
-          icon: FULL_CARD_ASSETS.reportTopic,
-          bg: FULL_CARD_ASSETS.topicCard,
-          tone: "topic" as const,
-        },
-      ];
-    }
-    return [
-      {
-        id: "topic",
-        title: "专题报告",
-        subtitle: "自由探索你感兴趣的方向",
-        count: `×${state.rights.topic}`,
-        icon: FULL_CARD_ASSETS.reportTopic,
-        bg: FULL_CARD_ASSETS.topicCard,
-        tone: "topic" as const,
-      },
-    ];
-  }, [isFull, state.rights.comprehensive, state.rights.topic]);
-
+function SuccessRedirectPage({ nav }: { nav: (r: Route) => void }) {
   useEffect(() => {
-    setActiveCardIndex(0);
-    railRef.current?.scrollTo({ left: 0, behavior: "auto" });
-  }, [isFull, state.product.id]);
-
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail || cards.length <= 1) return;
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (!visible) return;
-      const index = Number((visible.target as HTMLElement).dataset.index);
-      if (!Number.isNaN(index)) setActiveCardIndex(index);
-    }, { root: rail, threshold: [0.6, 0.75] });
-    cardRefs.current.slice(0, cards.length).forEach((card) => card && observer.observe(card));
-    return () => observer.disconnect();
-  }, [cards.length]);
-
-  const focusCard = (index: number) => {
-    const card = cardRefs.current[index];
-    if (!card) return;
-    card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-    setActiveCardIndex(index);
-  };
-
-  return (
-    <main className="page full-card-success">
-      <PageTitle title="兑换成功" text="开启你的专属形象探索之旅。" nav={nav} />
-
-      <section className="success-card-selector">
-        <SuccessSectionTitle title={isFull ? "全案探索卡权益" : "专题卡权益"} />
-        <div
-          ref={railRef}
-          className={`success-card-rail ${cards.length > 1 ? "is-dual" : "is-single"}`}
-          aria-label={isFull ? "全案探索卡权益卡片" : "专题卡权益卡片"}
-        >
-          {cards.map((card, index) => (
-            <button
-              key={card.id}
-              ref={(node) => { cardRefs.current[index] = node; }}
-              type="button"
-              data-index={index}
-              className={`success-card-slide ${card.tone} ${activeCardIndex === index ? "is-active" : ""}`}
-              onClick={() => focusCard(index)}
-            >
-              <img className="success-card-bg" src={card.bg} alt="" />
-              <div className="success-card-copy">
-                <div className="success-card-icon"><img src={card.icon} alt="" /></div>
-                <h3>{card.title}</h3>
-                <p>{card.subtitle}</p>
-                <strong>{card.count}</strong>
-                {card.id === "comprehensive" ? (
-                  <div className="success-card-dimensions">
-                    {comprehensiveDims.map(([label, icon]) => (
-                      <span key={label}><img src={icon} alt="" />{label}</span>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="success-card-topics">
-                    {topics.map(([title, text, icon]) => (
-                      <span key={title}><img src={icon} alt="" /><b>{title}</b><small>{text}</small></span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
-        {cards.length > 1 && (
-          <div className="success-card-dots" aria-hidden="true">
-            {cards.map((card, index) => <i key={card.id} className={activeCardIndex === index ? "active" : ""} />)}
-          </div>
-        )}
-      </section>
-
-      <div className="success-bottom-actions">
-        <button className="primary-button enabled" onClick={() => nav("select")}>
-          下一步 <Sparkles size={20} />
-        </button>
-      </div>
-    </main>
-  );
+    nav("select");
+  }, [nav]);
+  return null;
 }
 
 function RightsPills({ rights, showComprehensiveReport = true }: { rights: Rights; showComprehensiveReport?: boolean }) {
   return <div className="rights-pills">{showComprehensiveReport && <span><ReceiptText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}<span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div>;
 }
 
-function SuccessSectionTitle({ title }: { title: string }) {
+function SectionDivider({ title }: { title: string }) {
   return <div className="success-section-title"><img src={FULL_CARD_ASSETS.sparkleDivider} alt="" /><span>{title}</span><img src={FULL_CARD_ASSETS.sparkleDivider} alt="" /></div>;
 }
 
 function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { rights: Rights; showComprehensiveReport: boolean; chooseReport: (id: ReportTypeId) => void; nav: (r: Route) => void }) {
+  const topicRef = useRef<HTMLDivElement | null>(null);
+  const topicCardRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [activeTopicIndex, setActiveTopicIndex] = useState(0);
   const topics: Array<{
     id: ReportTypeId;
     title: string;
@@ -1265,6 +1133,33 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
     { id: "outfit", title: "穿搭配饰专题", subtitle: "穿出风格，提升气质", image: CHOOSE_REPORT_ASSETS.outfit, border: "#ffd4b6", tint: "#fff7ef" },
     { id: "look", title: "场景 Look 专题", subtitle: "不同场景，轻松变美", image: CHOOSE_REPORT_ASSETS.look, border: "#cbd7ff", tint: "#f5f8ff" },
   ];
+
+  useEffect(() => {
+    setActiveTopicIndex(0);
+    topicRef.current?.scrollTo({ left: 0, behavior: "auto" });
+  }, [rights.topic]);
+
+  useEffect(() => {
+    const rail = topicRef.current;
+    if (!rail) return;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      const index = Number((visible.target as HTMLElement).dataset.index);
+      if (!Number.isNaN(index)) setActiveTopicIndex(index);
+    }, { root: rail, threshold: [0.6, 0.75] });
+    topicCardRefs.current.slice(0, topics.length).forEach((card) => card && observer.observe(card));
+    return () => observer.disconnect();
+  }, [topics.length]);
+
+  const focusTopic = (index: number) => {
+    const card = topicCardRefs.current[index];
+    if (!card) return;
+    card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    setActiveTopicIndex(index);
+  };
 
   return (
     <main className="choose-report-page">
@@ -1280,24 +1175,17 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
         <p>一张综合图先看整体方向，四个专题再分别补发型、色彩、穿搭和场景。</p>
       </section>
 
-      <section className="choose-quota" aria-label="剩余报告次数">
+      <section className="choose-quota choose-quota-inline" aria-label="剩余报告次数">
         {showComprehensiveReport && <span><ReceiptText />综合报告剩余 <b>{rights.comprehensive}</b></span>}
         <span><KeyRound />专题报告剩余 <b>{rights.topic}</b></span>
       </section>
 
       {showComprehensiveReport && (
-        <section className={`choose-main-card ${rights.comprehensive > 0 ? "" : "is-disabled"}`}>
+        <section className={`choose-main-card choose-report-card ${rights.comprehensive > 0 ? "" : "is-disabled"}`} aria-label="综合形象报告">
           <div className="choose-main-copy">
-            <div className="choose-eyebrow"><Sparkles />全案主推</div>
             <h2>综合形象报告 <span>先看总方向</span></h2>
             <p>先把发型、色彩、面部状态、穿搭和场景感放到一张图里，再决定后面要不要补专题。</p>
-            <ul>
-              {["先看整体风格定位", "再拆发型发色和面部状态", "顺手看穿搭与场景建议", "适合保存下来反复对照", "一张图先理清方向"].map((item) => (
-                <li key={item}><Check />{item}</li>
-              ))}
-            </ul>
             <button className="choose-primary-btn" onClick={() => chooseReport("comprehensive")} disabled={rights.comprehensive <= 0}>生成这份综合报告</button>
-            <p className="choose-main-note">{rights.comprehensive > 0 ? "建议先生成这份，再按专题补充探索。" : "综合报告次数不足，先购买全案探索卡再来。"}</p>
           </div>
           <div className="choose-main-visual">
             <img className="choose-badge" src={CHOOSE_REPORT_ASSETS.badge} alt="全案专享" />
@@ -1306,29 +1194,43 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
         </section>
       )}
 
-      <section className="choose-topic-grid" aria-label="专题报告">
-        {topics.map((topic) => (
-          <button
-            className={`choose-topic-card ${rights.topic > 0 ? "" : "is-disabled"}`}
-            style={{ "--topic-border": topic.border, "--topic-tint": topic.tint } as React.CSSProperties}
-            key={topic.id}
-            onClick={() => chooseReport(topic.id)}
-            disabled={rights.topic <= 0}
-            aria-disabled={rights.topic <= 0}
-          >
-            <div className="choose-topic-copy">
-              <h2>{topic.title}</h2>
-              <p>{topic.subtitle}</p>
-            </div>
-            <div className="choose-topic-image">
-              <img src={topic.image} alt={`${topic.title}配图`} />
-            </div>
-            <div className="choose-topic-footer">
+      <section className="choose-topic-section" aria-label="专题报告">
+        <SectionDivider title="专题报告" />
+        <div ref={topicRef} className="choose-topic-rail" aria-label="专题报告横向滑动列表">
+          {topics.map((topic, index) => (
+            <button
+              key={topic.id}
+              ref={(node) => { topicCardRefs.current[index] = node; }}
+              type="button"
+              data-index={index}
+              className={`choose-topic-card choose-report-card ${rights.topic > 0 ? "" : "is-disabled"} ${activeTopicIndex === index ? "is-active" : ""}`}
+              style={{ "--topic-border": topic.border, "--topic-tint": topic.tint } as React.CSSProperties}
+              onClick={() => chooseReport(topic.id)}
+              disabled={rights.topic <= 0}
+              aria-disabled={rights.topic <= 0}
+            >
+              <div className="choose-topic-copy">
+                <h2>{topic.title}</h2>
+                <p>{topic.subtitle}</p>
+              </div>
+              <div className="choose-topic-image">
+                <img src={topic.image} alt={`${topic.title}配图`} />
+              </div>
               <span>{rights.topic > 0 ? "选择该专题" : "当前次数不足"}</span>
-              <small>{rights.topic > 0 ? "点开就能继续生成" : "先补专题权益后再来"}</small>
-            </div>
-          </button>
-        ))}
+            </button>
+          ))}
+        </div>
+        <div className="choose-topic-dots" aria-hidden="true">
+          {topics.map((topic, index) => (
+            <button
+              key={topic.id}
+              type="button"
+              className={activeTopicIndex === index ? "active" : ""}
+              onClick={() => focusTopic(index)}
+              tabIndex={-1}
+            />
+          ))}
+        </div>
       </section>
 
       <footer className="choose-tip">✦ 可基于同一张照片继续探索不同方向 ✦</footer>
@@ -2031,21 +1933,98 @@ function useAnimatedNumber(target: number, duration = 700) {
   return value;
 }
 
+type SharePlatform = "xhs" | "wechat" | "moments";
+
+type ShareAssets = {
+  report_id: string;
+  report_type: string;
+  style_persona: string;
+  cover_image_url: string;
+  report_image_url: string;
+  summary_image_url: string;
+  share_title: string;
+  share_text: string;
+  copy_text: string;
+  hashtags: string[];
+  platform_actions?: Partial<Record<SharePlatform, { label: string; deep_link: string; hint: string }>>;
+};
+
 function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state: AppState; showComprehensiveReport: boolean; nav: (r: Route) => void; showToast: (t: string) => void }) {
   const report = state.reports[0];
-  const [shareOpen, setShareOpen] = useState(false);
+  const [shareState, setShareState] = useState<{ open: boolean; platform: SharePlatform; loading: boolean; assets?: ShareAssets; error?: string }>({
+    open: false,
+    platform: "xhs",
+    loading: false,
+  });
+  const shareRequestSeq = useRef(0);
   if (!report) return <Empty title="还没有生成报告" text="请先选择报告类型并完成生成。" action="选择报告" onClick={() => nav("select")} />;
   const type = REPORT_TYPES.find((item) => item.id === report.type)!;
   const persona = PERSONAS[report.persona];
   const sharePhoto = report.coverImageUrl || state.photoUrl;
-  if (!report.reportImageUrl) {
-    if (report.status === "failed") {
-      return <Empty title="报告生成失败" text={report.error || "没有拿到完整报告图，请重新生成。"} action="重新生成" onClick={() => nav("confirm")} />;
-    }
+  const reportDownloadUrl = report.reportImageUrl || `/api/reports/${report.id}/report.svg`;
+
+  if (report.status === "failed" && !report.reportImageUrl) {
+    return <Empty title="报告生成失败" text={report.error || "没有拿到完整报告图，请重新生成。"} action="重新生成" onClick={() => nav("confirm")} />;
   }
+
+  const prepareShareAssets = async (platform: SharePlatform) => {
+    const requestId = ++shareRequestSeq.current;
+    setShareState((current) => ({ ...current, open: true, platform, loading: true, error: undefined }));
+    try {
+      const response = await fetch("/api/reports/prepare-xhs-share", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          report_id: report.id,
+          report_type: report.type,
+          style_persona: persona.title,
+        }),
+      });
+      if (!response.ok) throw new Error(`share prep failed with HTTP ${response.status}`);
+      const assets = await response.json() as ShareAssets;
+      if (requestId !== shareRequestSeq.current) return;
+      setShareState({
+        open: true,
+        platform,
+        loading: false,
+        assets,
+      });
+      await copyText(assets.copy_text || xhsCopy(type, report.persona, report.subjectGender), showToast, false);
+    } catch (error) {
+      if (requestId !== shareRequestSeq.current) return;
+      setShareState({
+        open: true,
+        platform,
+        loading: false,
+        error: error instanceof Error ? error.message : "分享素材准备失败",
+        assets: {
+          report_id: report.id,
+          report_type: type.id,
+          style_persona: persona.title,
+          cover_image_url: report.coverImageUrl || sharePhoto,
+          report_image_url: reportDownloadUrl,
+          summary_image_url: report.summaryImageUrl || report.coverImageUrl || sharePhoto,
+          share_title: `${type.name}已准备好`,
+          share_text: xhsCopy(type, report.persona, report.subjectGender),
+          copy_text: xhsCopy(type, report.persona, report.subjectGender),
+          hashtags: ["AI形象报告", "变美思路", "个人风格定位", "发型推荐"],
+          platform_actions: buildShareActions(),
+        },
+      });
+      showToast("分享素材已回退为本地模板");
+    }
+  };
+
+  const closeShare = () => {
+    shareRequestSeq.current += 1;
+    setShareState((current) => ({ ...current, open: false }));
+  };
+
+  const onDownload = () => downloadAsset(reportDownloadUrl, `${report.type}-report.${reportDownloadUrl.endsWith(".svg") ? "svg" : "png"}`, showToast);
+
   return (
     <main className="result-page">
-      <ResultNavbar nav={nav} onShare={() => setShareOpen(true)} />
+      <ResultNavbar nav={nav} onShare={() => prepareShareAssets("xhs")} />
       <section className="result-summary">
         <div className="result-summary-copy">
           <span className="result-summary-eyebrow">本次结果</span>
@@ -2056,15 +2035,37 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
           {type.tags.map((tag) => <span key={tag}>{tag}</span>)}
         </div>
       </section>
-      {report.reportImageUrl ? (
-        <article className="report-canvas beauty-report-canvas generated-report-shell" id="report-card">
-          <img className="generated-report-image" src={report.reportImageUrl} alt={`${type.name}生成结果`} />
-        </article>
-      ) : (
-        <ReportCanvas id="report-card" type={type} persona={persona} className="result-fallback-report" />
+      <section className="result-preview-band">
+        <div className="result-preview-head">
+          <div>
+            <b>页面预览</b>
+            <p>屏幕里看的是清晰可读的移动版报告，保存版会单独导出高清长图。</p>
+          </div>
+          <span>{report.reportImageUrl ? "高清下载已就绪" : "使用本地模板兜底"}</span>
+        </div>
+        <ReportCanvas id="report-card" type={type} persona={persona} className="result-preview-report" />
+      </section>
+      <ResultActionBar
+        rights={state.rights}
+        showComprehensiveReport={showComprehensiveReport}
+        onDownload={onDownload}
+        onGenerate={() => nav("select")}
+        onShare={prepareShareAssets}
+      />
+      {shareState.open && (
+        <ShareSheet
+          report={report}
+          type={type}
+          photo={sharePhoto}
+          platform={shareState.platform}
+          assets={shareState.assets}
+          loading={shareState.loading}
+          error={shareState.error}
+          close={closeShare}
+          showToast={showToast}
+          onSelectPlatform={prepareShareAssets}
+        />
       )}
-      <ResultActionBar rights={state.rights} showComprehensiveReport={showComprehensiveReport} onDownload={() => downloadNode("report-card", "aisea-report.png", showToast)} onGenerate={() => nav("select")} onShare={() => setShareOpen(true)} />
-      {shareOpen && <ShareSheet report={report} type={type} photo={sharePhoto} close={() => setShareOpen(false)} showToast={showToast} />}
     </main>
   );
 }
@@ -2073,8 +2074,41 @@ function ResultNavbar({ nav, onShare }: { nav: (r: Route) => void; onShare: () =
   return <header className="result-navbar"><button className="result-nav-btn" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><h1>查看结果</h1><button className="result-nav-btn" onClick={onShare} aria-label="分享报告"><Share2 /></button></header>;
 }
 
-function ResultActionBar({ rights, showComprehensiveReport, onDownload, onGenerate, onShare }: { rights: Rights; showComprehensiveReport: boolean; onDownload: () => void; onGenerate: () => void; onShare: () => void }) {
-  return <footer className="result-bottom-bar"><div className="result-rights">{showComprehensiveReport && <span><FileText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}<span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div><div className="result-primary-actions"><button className="result-download-btn" onClick={onDownload}><Download /><span>下载完整报告<small>高清大图，保存永久</small></span></button><button className="result-generate-btn" onClick={onGenerate}><PackagePlus /><span>继续生成专题<small>再补一个方向看看</small></span></button></div><button className="result-share-btn" onClick={onShare}><Heart /><span className="result-share-copy"><b>分享这份结果</b><small>先保存，再发到小红书、微信或朋友圈</small></span><span className="result-share-channels"><i>小红书</i><i>微信</i><i>朋友圈</i></span></button></footer>;
+function buildShareActions() {
+  return {
+    xhs: { label: "打开小红书", deep_link: "xhsdiscover://", hint: "若未自动打开，请手动打开小红书" },
+    wechat: { label: "打开微信", deep_link: "weixin://dl/chat", hint: "可先复制文案，再发给朋友或群聊" },
+    moments: { label: "打开朋友圈", deep_link: "weixin://dl/moments", hint: "如未跳转，可先进入微信后手动发布朋友圈" },
+  } as const;
+}
+
+function ResultActionBar({ rights, showComprehensiveReport, onDownload, onGenerate, onShare }: { rights: Rights; showComprehensiveReport: boolean; onDownload: () => void; onGenerate: () => void; onShare: (platform: SharePlatform) => void }) {
+  return (
+    <footer className="result-bottom-bar">
+      <div className="result-rights">
+        {showComprehensiveReport && <span><FileText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}
+        <span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span>
+      </div>
+      <div className="result-primary-actions">
+        <button className="result-download-btn" onClick={onDownload}><Download /><span>下载完整报告<small>高清大图，直接保存</small></span></button>
+        <button className="result-generate-btn" onClick={onGenerate}><PackagePlus /><span>继续生成专题<small>再补一个方向看看</small></span></button>
+      </div>
+      <section className="result-share-panel" aria-label="分享结果">
+        <div className="result-share-copy">
+          <Heart />
+          <span>
+            <b>分享</b>
+            <small>先准备素材，再发到对应平台</small>
+          </span>
+        </div>
+        <div className="result-share-icons">
+          <button className="result-share-icon xhs" onClick={() => onShare("xhs")} aria-label="分享到小红书"><img src={HOME_ASSETS.xiaohongshu} alt="" /></button>
+          <button className="result-share-icon wechat" onClick={() => onShare("wechat")} aria-label="分享到微信"><img src={HOME_ASSETS.wechat} alt="" /></button>
+          <button className="result-share-icon moments" onClick={() => onShare("moments")} aria-label="分享到朋友圈"><img src={HOME_ASSETS.moments} alt="" /></button>
+        </div>
+      </section>
+    </footer>
+  );
 }
 
 function VisualSlot({ label, tone, compact = false }: { label: string; tone: string; compact?: boolean }) {
@@ -2101,7 +2135,7 @@ function ReportCanvas({ id, type, persona, className = "" }: { id: string; type:
         <SectionCard index={5} title="穿搭风格建议" className="span-wide"><OutfitSection /></SectionCard>
         <SectionCard index={6} title="配饰推荐"><AccessorySection /></SectionCard>
         <SectionCard index={7} title="氛围雷区（避免这些会减分哦）" className="span-wide"><AvoidSection /></SectionCard>
-        <SectionCard index={8} title="一键抄作业清单"><ChecklistSection /></SectionCard>
+        <SectionCard index={8} title="打理方式"><CareSection /></SectionCard>
       </div>
       <footer className="keyword-summary"><Heart size={20} /><b>你的专属风格关键词：干净质感 ｜ 清新自然 ｜ 协调耐看</b><span>舒服又有辨识度，就是你的风格。</span><Sparkles size={22} /></footer>
     </article>
@@ -2139,41 +2173,216 @@ function OutfitSection() {
 }
 
 function AccessorySection() {
-  return <div className="accessory-section"><img src={BEAUTY_REPORT_ASSETS.accessories} alt="配饰推荐四宫格" loading="lazy" decoding="async" /><div>{BEAUTY_REPORT.accessories.map(([title, desc]) => <span key={title}><b>{title}</b><small>{desc}</small></span>)}</div></div>;
+  return <div className="accessory-section"><img src={BEAUTY_REPORT_ASSETS.accessories} alt="配饰推荐四宫格" loading="lazy" decoding="async" /><div>{BEAUTY_REPORT.accessories.map(([title, desc], index) => <span key={`${title}-${index}`}><b>{title}</b><small>{desc}</small></span>)}</div></div>;
 }
 
 function AvoidSection() {
-  return <div className="avoid-section"><img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.avoid} alt="氛围雷区五连图" loading="lazy" decoding="async" /><div className="avoid-labels">{BEAUTY_REPORT.avoidItems.map(([title, reason]) => <span key={title}><b>{title}</b><small>{reason}</small></span>)}</div></div>;
+  return (
+    <div className="avoid-section">
+      <img className="report-strip-img" src={BEAUTY_REPORT_ASSETS.avoid} alt="氛围雷区五连图" loading="lazy" decoding="async" />
+      <div className="avoid-labels">
+        {BEAUTY_REPORT.avoidItems.map(([title, reason]) => (
+          <span key={title}><b>{title}</b><small>{reason}</small></span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function ChecklistSection() {
-  return <div className="checklist-section">{BEAUTY_REPORT.checklist.map(([title, desc]) => <div key={title}><Check size={18} /><span><b>{title}</b><small>{desc}</small></span><button>去试试</button></div>)}</div>;
+function CareSection() {
+  return (
+    <div className="care-section">
+      <div className="care-tiles">
+        {BEAUTY_REPORT.checklist.map(([title, desc], index) => (
+          <article key={title} className="care-tile">
+            <div className="care-tile-art">
+              <span>{index + 1}</span>
+              <WandSparkles />
+            </div>
+            <b>{title}</b>
+            <small>{desc}</small>
+          </article>
+        ))}
+      </div>
+      <p>打理步骤做成图卡后，更适合手机上直接看，也更容易照着做。</p>
+    </div>
+  );
 }
 
-function ShareSheet({ report, type, photo, close, showToast }: { report: UserReport; type: ReportType; photo: string; close: () => void; showToast: (t: string) => void }) {
+function ShareSheet({
+  report,
+  type,
+  photo,
+  platform,
+  assets,
+  loading,
+  error,
+  close,
+  showToast,
+  onSelectPlatform,
+}: {
+  report: UserReport;
+  type: ReportType;
+  photo: string;
+  platform: SharePlatform;
+  assets?: ShareAssets;
+  loading: boolean;
+  error?: string;
+  close: () => void;
+  showToast: (t: string) => void;
+  onSelectPlatform: (platform: SharePlatform) => void;
+}) {
   const persona = PERSONAS[report.persona];
-  const copy = xhsCopy(type, report.persona, report.subjectGender);
-  const copyShare = async () => {
+  const copy = assets?.copy_text || xhsCopy(type, report.persona, report.subjectGender);
+  const coverImage = assets?.cover_image_url || report.coverImageUrl || photo;
+  const summaryImage = assets?.summary_image_url || report.summaryImageUrl || coverImage;
+  const reportImage = assets?.report_image_url || report.reportImageUrl || `/api/reports/${report.id}/report.svg`;
+  const platformMeta: Record<SharePlatform, { title: string; desc: string; action: string; deepLink: string }> = {
+    xhs: { title: "分享到小红书", desc: "先保存封面、摘要和完整报告，再复制文案发布", action: "打开小红书", deepLink: "xhsdiscover://" },
+    wechat: { title: "分享到微信", desc: "先保存图片，再把文案发给朋友或自己收藏", action: "打开微信", deepLink: "weixin://dl/chat" },
+    moments: { title: "分享到朋友圈", desc: "先保存素材，再进入朋友圈手动发布", action: "打开朋友圈", deepLink: "weixin://dl/moments" },
+  };
+  const meta = platformMeta[platform];
+  const platformButtons: Record<SharePlatform, { label: string; icon: string }> = {
+    xhs: { label: "小红书", icon: HOME_ASSETS.xiaohongshu },
+    wechat: { label: "微信", icon: HOME_ASSETS.wechat },
+    moments: { label: "朋友圈", icon: HOME_ASSETS.moments },
+  };
+  const saveCover = () => downloadAsset(coverImage, `aisea-${platform}-cover.${coverImage.endsWith(".svg") ? "svg" : "png"}`, showToast);
+  const saveSummary = () => downloadAsset(summaryImage, `aisea-${platform}-summary.${summaryImage.endsWith(".svg") ? "svg" : "png"}`, showToast);
+  const saveReport = () => downloadAsset(reportImage, `aisea-${platform}-report.${reportImage.endsWith(".svg") ? "svg" : "png"}`, showToast);
+  const copyShare = () => copyText(copy, showToast);
+  const openPlatform = () => openShareLink(meta.deepLink, showToast, meta.action);
+  const useSystemShare = async () => {
     try {
-      await navigator.clipboard.writeText(copy);
-      showToast("文案已复制，打开小红书后可直接粘贴");
+      if (!navigator.share) throw new Error("no_share_api");
+      await navigator.share({ title: assets?.share_title || meta.title, text: copy, url: window.location.href });
     } catch {
-      showToast("当前浏览器不支持自动复制，请长按文案手动复制");
+      showToast("当前设备不支持系统分享，已保留文案和图片");
     }
   };
-  return <div className="sheet-backdrop" onClick={close}><section className="share-sheet" onClick={(e) => e.stopPropagation()}><header><div><h2>分享到小红书</h2><p>先保存封面和完整报告，再复制文案发布</p></div><button onClick={close}>×</button></header><div className="share-grid">{report.coverImageUrl ? <img className="xhs-generated-cover" src={report.coverImageUrl} alt="小红书封面图" /> : <XhsCover persona={persona} photo={photo} />}<div className="share-steps"><section className="share-phase"><h3>第一步，先保存图片</h3><StepButton n={1} icon={<ImageDown />} title="保存封面图" text="建议作为笔记第 1 张图" onClick={() => showToast("移动端请长按封面图保存到相册")} /><StepButton n={2} icon={<Download />} title="保存完整报告图" text="建议作为笔记第 2 张图" onClick={() => showToast("移动端请长按完整报告图保存")} /></section><section className="share-phase"><h3>第二步，再复制并发布</h3><StepButton n={3} icon={<Clipboard />} title="复制小红书文案" text="打开小红书后直接粘贴" onClick={copyShare} /><StepButton n={4} icon={<ExternalLink />} title="打开小红书发布笔记" text="若未自动打开，请手动打开" onClick={() => { window.location.href = "xhsdiscover://"; setTimeout(() => showToast("如未自动打开，请手动打开小红书"), 800); }} /><textarea readOnly value={copy} /></section></div></div></section></div>;
+
+  return (
+    <div className="sheet-backdrop" onClick={close}>
+      <section className="share-sheet" onClick={(e) => e.stopPropagation()}>
+        <header>
+          <div>
+            <h2>{meta.title}</h2>
+            <p>{meta.desc}</p>
+          </div>
+          <button onClick={close}>×</button>
+        </header>
+        <div className="share-platform-tabs">
+          {(Object.keys(platformButtons) as SharePlatform[]).map((item) => (
+            <button key={item} className={item === platform ? "is-active" : ""} onClick={() => onSelectPlatform(item)}>
+              <img src={platformButtons[item].icon} alt="" />
+              <span>{platformButtons[item].label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="share-grid">
+          <section className="share-preview-panel">
+            <div className="share-preview-stack">
+              <figure>
+                <img src={coverImage} alt="分享封面图" />
+                <figcaption>封面图</figcaption>
+              </figure>
+              <figure>
+                <img src={summaryImage} alt="分享摘要图" />
+                <figcaption>摘要图</figcaption>
+              </figure>
+              <figure>
+                <img src={reportImage} alt="完整报告图" />
+                <figcaption>完整报告图</figcaption>
+              </figure>
+            </div>
+            <div className="share-preview-copy">
+              <h3>{assets?.share_title || meta.title}</h3>
+              <p>{copy}</p>
+            </div>
+          </section>
+          <div className="share-steps">
+            <section className="share-phase">
+              <h3>第一步，先保存图片</h3>
+              <StepButton n={1} icon={<ImageDown />} title="保存封面图" text="适合作为首图" onClick={saveCover} />
+              <StepButton n={2} icon={<ImageDown />} title="保存摘要图" text="适合作为第二张图" onClick={saveSummary} />
+              <StepButton n={3} icon={<Download />} title="保存完整报告图" text="适合作为长图备份" onClick={saveReport} />
+            </section>
+            <section className="share-phase">
+              <h3>第二步，再复制并发布</h3>
+              <StepButton n={4} icon={<Clipboard />} title="复制分享文案" text="打开平台后直接粘贴" onClick={copyShare} />
+              <StepButton n={5} icon={<ExternalLink />} title={meta.action} text="如果没有自动跳转，就手动打开" onClick={openPlatform} />
+              <StepButton n={6} icon={<Share2 />} title="系统分享" text="调用手机自带分享面板" onClick={useSystemShare} />
+            </section>
+            <section className="share-phase share-phase-note">
+              <h3>发出去之前</h3>
+              <p>{error || (loading ? "分享素材准备中..." : "封面、摘要和完整报告都已经准备好了。")}</p>
+              <textarea readOnly value={copy} />
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
 
-function XhsCover({ persona, photo }: { persona: typeof PERSONAS.softFrench; photo: string }) {
-  return <article className="xhs-cover"><span>AI 个人形象报告</span><h2>{persona.title}<br />养成报告</h2><div className="chip-row">{persona.keywords.map((k) => <i key={k}>{k}</i>)}</div><img src={photo} alt="小红书封面人物" /><p>{persona.summary}</p></article>;
+function openShareLink(url: string, showToast: (t: string) => void, label: string) {
+  try {
+    window.location.href = url;
+    window.setTimeout(() => showToast(`已尝试打开${label}`), 650);
+  } catch {
+    showToast(`未能自动打开${label}，请手动进入对应 App`);
+  }
 }
 
 function StepButton({ n, icon, title, text, onClick }: { n: number; icon: React.ReactNode; title: string; text: string; onClick: () => void }) {
   return <button className="step-button" onClick={onClick}><b>{n}</b>{icon}<span><strong>{title}</strong><small>{text}</small></span></button>;
 }
 
-function downloadNode(_id: string, _filename: string, showToast: (t: string) => void) {
-  showToast("移动端建议长按报告图保存；正式端会由后端返回 PNG/JPG 下载地址");
+async function copyText(text: string, showToast: (t: string) => void, announce = true) {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (announce) showToast("文案已复制");
+    return true;
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand("copy");
+    textarea.remove();
+    showToast(ok ? "文案已复制" : "当前浏览器不支持自动复制，请手动选择文本");
+    return ok;
+  }
+}
+
+async function downloadAsset(url: string, filename: string, showToast: (t: string) => void) {
+  try {
+    const response = await fetch(url, { credentials: "same-origin" });
+    if (!response.ok) throw new Error(`download failed with HTTP ${response.status}`);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+    showToast("已开始下载高清文件");
+  } catch {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    showToast("已尝试直接下载，请检查浏览器下载栏");
+  }
 }
 
 function Empty({ title, text, action, onClick }: { title: string; text: string; action: string; onClick: () => void }) {

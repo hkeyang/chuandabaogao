@@ -52,6 +52,7 @@ export interface UserReport {
   photoDataUrl?: string;
   reportImageUrl?: string;
   coverImageUrl?: string;
+  summaryImageUrl?: string;
   prompt: string;
   status?: "completed" | "failed";
   error?: string;
