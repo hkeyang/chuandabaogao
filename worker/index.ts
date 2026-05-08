@@ -28,9 +28,49 @@ interface Env {
   OPENAI_API_KEY: string;
   ADMIN_PASSWORD_SECRET: string;
   COUPON_VALID_DAYS: string;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PAYMENTS_ENABLED?: string;
+  STRIPE_PAYMENT_CURRENCY?: string;
+  STRIPE_SUCCESS_URL?: string;
+  STRIPE_CANCEL_URL?: string;
 }
 
 type Json = Record<string, unknown>;
+type ProductRow = {
+  id: string;
+  name: string;
+  price: number;
+  original_price?: number | null;
+  badge?: string | null;
+  description: string;
+  topic_rights: number;
+  comprehensive_rights: number;
+  purchase_link: string;
+  enabled: number;
+  sort_order: number;
+  updated_at: string;
+};
+type OrderRow = {
+  id: string;
+  order_no: string;
+  client_id: string;
+  product_id: string;
+  product_snapshot_json: string;
+  amount: number;
+  currency: string;
+  status: string;
+  rights_topic: number;
+  rights_comprehensive: number;
+  coupon_code?: string | null;
+  stripe_checkout_session_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+  expires_at?: string | null;
+  paid_at?: string | null;
+  fulfilled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 const json = (data: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(data), {
@@ -44,6 +84,26 @@ function randomId(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "").slice(0, 18)}`;
 }
 
+function orderNo() {
+  const date = new Date();
+  const stamp = `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}`;
+  return `AI${stamp}${crypto.randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+}
+
+function stripePaymentsEnabled(env: Env) {
+  return env.STRIPE_PAYMENTS_ENABLED === "true" && Boolean(env.STRIPE_SECRET_KEY);
+}
+
+function stripeCurrency(env: Env) {
+  return String(env.STRIPE_PAYMENT_CURRENCY || "cny").toLowerCase();
+}
+
+function unitAmount(price: unknown) {
+  const value = Number(price);
+  if (!Number.isFinite(value) || value <= 0) throw new Error("invalid_product_price");
+  return Math.round(value * 100);
+}
+
 function couponCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = crypto.getRandomValues(new Uint8Array(8));
@@ -52,6 +112,114 @@ function couponCode() {
 
 async function body<T = Json>(request: Request): Promise<T> {
   return request.json() as Promise<T>;
+}
+
+function checkoutReturnUrl(env: Env, key: "success" | "cancel") {
+  const base = env.PUBLIC_BASE_URL.replace(/\/$/, "");
+  if (key === "success") return env.STRIPE_SUCCESS_URL || `${base}/#/payment/success?session_id={CHECKOUT_SESSION_ID}`;
+  return env.STRIPE_CANCEL_URL || `${base}/#/purchase`;
+}
+
+async function stripeRequest(env: Env, path: string, params: URLSearchParams) {
+  if (!env.STRIPE_SECRET_KEY) throw new Error("stripe_secret_missing");
+  const response = await fetch(`https://api.stripe.com/v1${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "content-type": "application/x-www-form-urlencoded",
+      "stripe-version": "2026-02-25.clover",
+    },
+    body: params,
+  });
+  const payload = await response.json().catch(() => ({})) as Json;
+  if (!response.ok) {
+    const error = typeof payload.error === "object" && payload.error ? payload.error as Json : {};
+    throw new Error(String(error.message || payload.error || `stripe_${response.status}`));
+  }
+  return payload;
+}
+
+async function retrieveCheckoutSession(env: Env, sessionId: string) {
+  if (!env.STRIPE_SECRET_KEY) throw new Error("stripe_secret_missing");
+  const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+    headers: {
+      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "stripe-version": "2026-02-25.clover",
+    },
+  });
+  const payload = await response.json().catch(() => ({})) as Json;
+  if (!response.ok) throw new Error(`stripe_session_retrieve_failed:${response.status}`);
+  return payload;
+}
+
+function orderPayload(order: OrderRow | null) {
+  if (!order) return null;
+  return {
+    id: order.id,
+    order_no: order.order_no,
+    product_id: order.product_id,
+    product: JSON.parse(order.product_snapshot_json || "{}"),
+    amount: order.amount,
+    currency: order.currency,
+    status: order.status,
+    rights: { topic: order.rights_topic, comprehensive: order.rights_comprehensive },
+    coupon_code: order.coupon_code || "",
+    stripe_checkout_session_id: order.stripe_checkout_session_id || "",
+    stripe_payment_intent_id: order.stripe_payment_intent_id || "",
+    expires_at: order.expires_at || "",
+    paid_at: order.paid_at || "",
+    fulfilled_at: order.fulfilled_at || "",
+    created_at: order.created_at,
+    updated_at: order.updated_at,
+  };
+}
+
+async function fulfillOrder(env: Env, orderId: string, stripePaymentIntentId = "") {
+  const order = await env.DB.prepare("SELECT * FROM orders WHERE id = ?").bind(orderId).first<OrderRow>();
+  if (!order) throw new Error("order_not_found");
+  if (order.fulfilled_at && order.coupon_code) return order;
+
+  let code = couponCode();
+  for (let guard = 0; guard < 8; guard += 1) {
+    const existed = await env.DB.prepare("SELECT code FROM coupons WHERE code = ?").bind(code).first();
+    if (!existed) break;
+    code = couponCode();
+  }
+  const paidAt = order.paid_at || now();
+  const days = Number(env.COUPON_VALID_DAYS || 30);
+  const expiresAt = new Date(Date.now() + days * 86400_000).toISOString();
+
+  await env.DB.prepare("INSERT INTO coupons (code, product_id, platform, status, created_at, expires_at, redeemed_client_id) VALUES (?, ?, 'Stripe', 'unused', ?, ?, ?)")
+    .bind(code, order.product_id, now(), expiresAt, order.client_id)
+    .run();
+  await env.DB.prepare("UPDATE orders SET status = 'fulfilled', coupon_code = ?, stripe_payment_intent_id = COALESCE(NULLIF(?, ''), stripe_payment_intent_id), paid_at = COALESCE(paid_at, ?), fulfilled_at = ?, updated_at = ? WHERE id = ? AND fulfilled_at IS NULL")
+    .bind(code, stripePaymentIntentId, paidAt, now(), now(), order.id)
+    .run();
+
+  return {
+    ...order,
+    status: "fulfilled",
+    coupon_code: code,
+    stripe_payment_intent_id: stripePaymentIntentId || order.stripe_payment_intent_id,
+    paid_at: order.paid_at || paidAt,
+    fulfilled_at: now(),
+    updated_at: now(),
+  };
+}
+
+function hex(buffer: ArrayBuffer) {
+  return [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function verifyStripeSignature(payload: string, signature: string, secret: string) {
+  const timestamp = signature.match(/(?:^|,)t=([^,]+)/)?.[1] || "";
+  const signatures = [...signature.matchAll(/(?:^|,)v1=([^,]+)/g)].map((match) => match[1]);
+  if (!timestamp || signatures.length === 0) return false;
+  const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+  if (!Number.isFinite(age) || age > 300) return false;
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const digest = hex(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${timestamp}.${payload}`)));
+  return signatures.some((item) => item.length === digest.length && item === digest);
 }
 
 async function audit(env: Env, actor: string, action: string, detail: string, request: Request) {
@@ -98,17 +266,20 @@ function typePrompt(reportType: string) {
       "分享金句：一句适合小红书封面的短句。",
     ],
     hair: [
+      "专题边界：只讲发型、发色、脸型与打理，不要出现服装搭配、OOTD、鞋包、腕表、帽子、穿搭清单或场景穿搭。",
       "脸部轮廓、发质状态、发量感、当前发型气质。",
-      "推荐发型：真实缩略图，展示长度、刘海或额前区、卷度、层次和侧后区处理。",
-      "发色推荐：展示低饱和、自然过渡的发色质感；男性优先黑茶、自然黑、冷棕、摩卡棕。",
+      "推荐发型：真实头部/半身缩略图，展示长度、刘海或额前区、卷度、层次和侧后区处理。",
+      "发色推荐：必须包含 4-6 张同一人物正脸或半身人像效果示意图，分别展示不同发色上脸效果；旁边再放真实头发质感色卡。男性优先自然黑、黑茶、冷棕、摩卡棕；女性可补充奶茶棕、亚麻棕、玫瑰棕等。",
       "打理方式：洗护、吹风方向、造型品和理发师沟通关键词。",
       ...sharedEnding,
     ],
     makeup: [
+      "专题边界：只讲个人色彩、面部状态、上镜气色和面部细节，不要出现穿搭套餐、OOTD、鞋包、整套服装推荐或场景穿搭。",
       "个人色彩倾向：冷暖、明度、饱和度、对比度。",
       "推荐色盘：主色、辅助色、点缀色、中性色。",
+      "面部效果图：必须包含 5-8 张人物面部近景效果示意图，例如眉形、肤色均匀度、眼周精神度、发际/鬓角或轮廓、眼镜框型、上镜气色；女性可加入底妆、眼妆、腮红、唇色效果，男性禁止口红腮红妆容化。",
       "面部清爽度建议：男性写眉形修整、肤色均匀、控油、黑眼圈、胡须/鬓角、眼镜框型；女性写底妆、眉形、眼妆、腮红、唇色。",
-      "发色与服装颜色延展建议。",
+      "发色与贴脸颜色延展建议：只讲靠近脸部的发色、上衣领口颜色、眼镜/帽檐颜色如何影响气色，不做整套穿搭推荐。",
       ...sharedEnding,
     ],
     outfit: [
@@ -119,10 +290,13 @@ function typePrompt(reportType: string) {
       ...sharedEnding,
     ],
     look: [
+      "专题边界：这是场景 Look 专题，可以讲服装和配饰，但每个建议都必须绑定具体场景，不要泛泛列单品。",
+      "固定结构：日常、通勤/上学、拍照、聚会四个场景必须全部出现，任何一个都不能省略。",
       "日常 Look：给具体上装、下装、鞋和氛围关键词。",
       "通勤 / 上学 Look：给整套组合和适用场景。",
       "拍照 Look：给镜头友好的颜色、层次和姿态建议。",
       "聚会 Look：给更有存在感但不过度的搭配。",
+      "图片密度：不要只做四宫格。必须至少 8 张人物场景照片或全身/半身 Look 图，日常、通勤/上学、拍照、聚会每个场景至少 2 张人物图；优先使用同一人物脸部特征延展，不要只放衣服平铺图。",
       "场景对比表与今日可执行建议。",
       "适合保存的总结语。",
     ],
@@ -146,12 +320,24 @@ function genderRoutingPrompt(persona: string, keywords: string) {
 5. 每个标题、分区标题、单品、示例图片都必须和识别出的性别呈现一致；一旦发现冲突，优先删除冲突内容。`;
 }
 
-function visualDesignPrompt(reportLabel: string) {
+function topicVisualPrompt(reportType: string) {
+  const prompts: Record<string, string> = {
+    hair: "- 发型发色专题图片构成：顶部人物主视觉 1 张；推荐发型 3-4 张头部/半身图；发色上脸效果 4-6 张同一人物正脸或半身图；发色质感色卡 4-6 个。禁止出现穿搭套装、鞋包、腕表、OOTD 或全身搭配模块。",
+    makeup: "- 色彩与面部清爽度专题图片构成：顶部人物主视觉 1 张；面部近景效果图 5-8 张；色盘 2-4 组；眉形/肤色/眼周/胡须鬓角或妆容细节局部图若干。禁止出现整套穿搭、鞋包、服装平铺和 OOTD 模块。",
+    look: "- 场景 Look 专题图片构成：不要做成只有 4 张场景图的四宫格；必须先把“日常、通勤/上学、拍照、聚会”四个区块全部放出来，每个区块 2 张人物图，共至少 8 张人物场景照片或全身/半身 Look 图。可以补少量单品图，但不能只放衣服平铺。整体要像一本场景造型 mini lookbook。",
+    outfit: "- 穿搭配饰专题图片构成：3 套 OOTD 全身图、核心单品图、鞋包配饰图和版型/颜色说明；不要深入讲发型发色或面部清爽度。",
+    comprehensive: "- 综合报告图片构成：人物主视觉、发型发色、色彩面部、穿搭配饰、场景 Look 都要覆盖，但每个模块保持简洁，不要让某一专题吞掉整体版面。",
+  };
+  return prompts[reportType] || prompts.comprehensive;
+}
+
+function visualDesignPrompt(reportLabel: string, reportType: string) {
   return `视觉设计要求：
 - 这不是普通模板拼贴，要做成有点击欲望的高质量中文视觉报告。第一屏必须像杂志封面/高端形象顾问诊断页，有清晰人物主视觉、强标题、风格结论和 3 个关键信息锚点。
 - 竖版 9:16，整体有层次：顶部主视觉区 35%，中部模块网格 50%，底部行动清单 15%。不要密密麻麻的小字，不要后台表格感。
 - 男性报告视觉：更克制高级，可用米白、炭黑、雾灰、橄榄绿、牛仔蓝、摩卡棕、银灰点缀；避免粉色可爱、爱心、蝴蝶结、花朵、闪闪少女风。
 - 女性报告视觉：可以温柔精致，但也要高级、有留白、有真实材质图，不要廉价粉色堆叠。
+- ${topicVisualPrompt(reportType)}
 - ${reportLabel} 必须有清晰中文大标题、模块编号、真实材质/单品缩略图和可读正文。所有中文必须正确、清楚、无乱码。`;
 }
 
@@ -180,7 +366,7 @@ ${genderRoutingPrompt(persona, keywords)}
 必须包含：
 ${typePrompt(reportType)}
 
-${visualDesignPrompt(reportLabel)}
+${visualDesignPrompt(reportLabel, reportType)}
 
 文字必须是清晰简体中文。禁止乱码、假中文、随机符号、重复字、不可读小字。
 保留用户本人核心长相特征，不要过度美颜，不要攻击外貌，不要低俗或成人化。`;
@@ -301,7 +487,178 @@ async function handleApi(request: Request, env: Env, url: URL) {
 
   if (request.method === "GET" && url.pathname === "/api/config") {
     const products = await env.DB.prepare("SELECT * FROM products WHERE enabled = 1 ORDER BY sort_order ASC").all();
-    return json({ products: products.results });
+    return json({
+      products: products.results,
+      payments: {
+        stripeEnabled: stripePaymentsEnabled(env),
+        currency: stripeCurrency(env),
+        methods: ["wechat_pay", "alipay"],
+      },
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/orders/checkout") {
+    const input = await body(request);
+    const productId = String(input.product_id || "");
+    const clientId = String(input.client_id || "");
+    if (!productId) return json({ error: "invalid_product_id" }, { status: 400 });
+    if (!clientId) return json({ error: "client_id_required" }, { status: 400 });
+    if (!stripePaymentsEnabled(env)) {
+      return json({
+        error: "stripe_payments_not_enabled",
+        message: "Stripe 支付暂未启用，等支付方式审批完成后再切换上线。",
+        stripe_enabled: false,
+      }, { status: 503 });
+    }
+
+    const product = await env.DB.prepare("SELECT * FROM products WHERE id = ? AND enabled = 1").bind(productId).first<ProductRow>();
+    if (!product) return json({ error: "product_not_found" }, { status: 404 });
+
+    const amount = unitAmount(product.price);
+    const orderId = randomId("ord");
+    const orderNoValue = orderNo();
+    const currency = stripeCurrency(env);
+    const productSnapshot = {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      originalPrice: product.original_price || null,
+      badge: product.badge || null,
+      description: product.description,
+      rights: {
+        topic: product.topic_rights,
+        comprehensive: product.comprehensive_rights,
+      },
+    };
+    const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
+
+    await env.DB.prepare(`INSERT INTO orders
+      (id, order_no, client_id, product_id, product_snapshot_json, amount, currency, status, rights_topic, rights_comprehensive, expires_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?)`)
+      .bind(orderId, orderNoValue, clientId, product.id, JSON.stringify(productSnapshot), amount, currency, product.topic_rights, product.comprehensive_rights, expiresAt, now(), now())
+      .run();
+
+    const params = new URLSearchParams();
+    params.set("mode", "payment");
+    params.set("success_url", checkoutReturnUrl(env, "success"));
+    params.set("cancel_url", checkoutReturnUrl(env, "cancel"));
+    params.set("client_reference_id", orderId);
+    params.set("payment_method_options[wechat_pay][client]", "web");
+    params.append("payment_method_types[0]", "wechat_pay");
+    params.append("payment_method_types[1]", "alipay");
+    params.set("line_items[0][price_data][currency]", currency);
+    params.set("line_items[0][price_data][product_data][name]", product.name);
+    params.set("line_items[0][price_data][unit_amount]", String(amount));
+    params.set("line_items[0][quantity]", "1");
+    params.set("metadata[order_id]", orderId);
+    params.set("metadata[order_no]", orderNoValue);
+    params.set("metadata[product_id]", product.id);
+    params.set("metadata[client_id]", clientId);
+    params.set("metadata[platform]", "web");
+
+    const session = await stripeRequest(env, "/checkout/sessions", params) as Json;
+    const checkoutSessionId = String(session.id || "");
+    const checkoutUrl = String(session.url || "");
+    if (!checkoutSessionId || !checkoutUrl) throw new Error("stripe_checkout_session_missing");
+    await env.DB.prepare("UPDATE orders SET status = 'checkout_open', stripe_checkout_session_id = ?, updated_at = ? WHERE id = ?")
+      .bind(checkoutSessionId, now(), orderId)
+      .run();
+
+    return json({
+      order_id: orderId,
+      order_no: orderNoValue,
+      checkout_url: checkoutUrl,
+      stripe_checkout_session_id: checkoutSessionId,
+      currency,
+      amount,
+      payment_methods: ["wechat_pay", "alipay"],
+    });
+  }
+
+  const orderMatch = url.pathname.match(/^\/api\/orders\/([^/]+)$/);
+  if (request.method === "GET" && orderMatch) {
+    const order = await env.DB.prepare("SELECT * FROM orders WHERE id = ?").bind(orderMatch[1]).first<OrderRow>();
+    return order ? json({ order: orderPayload(order) }) : json({ error: "order_not_found" }, { status: 404 });
+  }
+
+  const sessionMatch = url.pathname.match(/^\/api\/orders\/by-session\/([^/]+)$/);
+  if (request.method === "GET" && sessionMatch) {
+    let order = await env.DB.prepare("SELECT * FROM orders WHERE stripe_checkout_session_id = ?").bind(sessionMatch[1]).first<OrderRow>();
+    if (!order) return json({ error: "order_not_found" }, { status: 404 });
+    if (!order.fulfilled_at && env.STRIPE_SECRET_KEY && stripePaymentsEnabled(env)) {
+      try {
+        const session = await retrieveCheckoutSession(env, sessionMatch[1]);
+        const paymentStatus = String(session.payment_status || "");
+        const paymentIntentId = typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : typeof session.payment_intent === "object" && session.payment_intent && typeof (session.payment_intent as Json).id === "string"
+            ? String((session.payment_intent as Json).id)
+            : "";
+        if (paymentStatus === "paid" || paymentStatus === "no_payment_required") {
+          await env.DB.prepare("UPDATE orders SET status = 'paid', stripe_payment_intent_id = COALESCE(NULLIF(?, ''), stripe_payment_intent_id), paid_at = COALESCE(paid_at, ?), updated_at = ? WHERE id = ?")
+            .bind(paymentIntentId, now(), now(), order.id)
+            .run();
+          order = await fulfillOrder(env, order.id, paymentIntentId);
+        } else if (paymentStatus === "unpaid") {
+          await env.DB.prepare("UPDATE orders SET status = 'checkout_open', updated_at = ? WHERE id = ?")
+            .bind(now(), order.id)
+            .run();
+        }
+      } catch {
+        // keep the endpoint read-only tolerant; webhook is the source of truth
+      }
+    }
+    const latest = await env.DB.prepare("SELECT * FROM orders WHERE id = ?").bind(order.id).first<OrderRow>();
+    return json({ order: orderPayload(latest) });
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/stripe/webhook") {
+    if (!stripePaymentsEnabled(env) || !env.STRIPE_WEBHOOK_SECRET) {
+      return json({ error: "stripe_webhook_not_configured" }, { status: 503 });
+    }
+    const payload = await request.text();
+    const signature = request.headers.get("stripe-signature") || "";
+    const verified = await verifyStripeSignature(payload, signature, env.STRIPE_WEBHOOK_SECRET);
+    if (!verified) return json({ error: "invalid_signature" }, { status: 400 });
+
+    const event = JSON.parse(payload) as Json;
+    const eventId = String(event.id || "");
+    const eventType = String(event.type || "");
+    const data = typeof event.data === "object" && event.data ? event.data as Json : {};
+    const object = typeof data.object === "object" && data.object ? data.object as Json : {};
+    const sessionId = String(object.id || "");
+    const paymentIntentId = typeof object.payment_intent === "string"
+      ? object.payment_intent
+      : typeof object.payment_intent === "object" && object.payment_intent && typeof (object.payment_intent as Json).id === "string"
+        ? String((object.payment_intent as Json).id)
+        : "";
+
+    if (eventId) {
+      const existed = await env.DB.prepare("SELECT id FROM payment_events WHERE stripe_event_id = ?").bind(eventId).first();
+      if (!existed) {
+        await env.DB.prepare("INSERT INTO payment_events (id, stripe_event_id, type, checkout_session_id, payment_intent_id, raw_status, processed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(randomId("evt"), eventId, eventType, sessionId, paymentIntentId, String(object.payment_status || object.status || ""), now(), now())
+          .run();
+      }
+    }
+
+    if (eventType === "checkout.session.completed" || eventType === "checkout.session.async_payment_succeeded") {
+      const order = await env.DB.prepare("SELECT * FROM orders WHERE stripe_checkout_session_id = ?").bind(sessionId).first<OrderRow>();
+      if (order) {
+        await env.DB.prepare("UPDATE orders SET status = 'paid', stripe_payment_intent_id = COALESCE(NULLIF(?, ''), stripe_payment_intent_id), paid_at = COALESCE(paid_at, ?), updated_at = ? WHERE id = ?")
+          .bind(paymentIntentId, now(), now(), order.id)
+          .run();
+        await fulfillOrder(env, order.id, paymentIntentId);
+      }
+    }
+
+    if (eventType === "checkout.session.async_payment_failed" || eventType === "checkout.session.expired") {
+      await env.DB.prepare("UPDATE orders SET status = ?, updated_at = ? WHERE stripe_checkout_session_id = ? AND status IN ('created', 'checkout_open', 'paid')")
+        .bind(eventType === "checkout.session.expired" ? "expired" : "payment_failed", now(), sessionId)
+        .run();
+    }
+
+    return json({ received: true });
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/login") {

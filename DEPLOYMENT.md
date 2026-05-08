@@ -14,9 +14,17 @@
 ```bash
 wrangler secret put ADMIN_PASSWORD_SECRET
 wrangler secret put OPENAI_API_KEY
+wrangler secret put STRIPE_SECRET_KEY
+wrangler secret put STRIPE_WEBHOOK_SECRET
 ```
 
 当前生图模型配置为 `gpt-image-2`，接口地址在 `wrangler.toml` 的 `OPENAI_IMAGE_ENDPOINT`。
+
+## 2.1 Stripe 预埋状态
+
+- `STRIPE_PAYMENTS_ENABLED=false` 时，支付接口只保留骨架，不会创建真实 Checkout Session。
+- 等微信支付 / 支付宝审批通过后，再把 `STRIPE_PAYMENTS_ENABLED` 改成 `true`，并配置 `STRIPE_SUCCESS_URL` / `STRIPE_CANCEL_URL`。
+- 推荐先在 Stripe Dashboard 完成微信支付、支付宝和 webhook 的测试联调，再切生产开关。
 
 ## 3. 本地开发
 

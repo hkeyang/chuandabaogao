@@ -34,6 +34,38 @@ CREATE TABLE IF NOT EXISTS coupons (
   redeemed_client_id TEXT
 );
 
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  order_no TEXT NOT NULL UNIQUE,
+  client_id TEXT NOT NULL,
+  product_id TEXT NOT NULL REFERENCES products(id),
+  product_snapshot_json TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  currency TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('created', 'checkout_open', 'paid', 'fulfilled', 'expired', 'canceled', 'payment_failed', 'refund_pending', 'refunded')),
+  rights_topic INTEGER NOT NULL DEFAULT 0,
+  rights_comprehensive INTEGER NOT NULL DEFAULT 0,
+  coupon_code TEXT,
+  stripe_checkout_session_id TEXT UNIQUE,
+  stripe_payment_intent_id TEXT UNIQUE,
+  expires_at TEXT,
+  paid_at TEXT,
+  fulfilled_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payment_events (
+  id TEXT PRIMARY KEY,
+  stripe_event_id TEXT NOT NULL UNIQUE,
+  type TEXT NOT NULL,
+  checkout_session_id TEXT,
+  payment_intent_id TEXT,
+  raw_status TEXT,
+  processed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY,
   client_id TEXT NOT NULL,
@@ -78,3 +110,6 @@ CREATE INDEX IF NOT EXISTS idx_coupons_product ON coupons(product_id);
 CREATE INDEX IF NOT EXISTS idx_coupons_status ON coupons(status);
 CREATE INDEX IF NOT EXISTS idx_reports_client ON reports(client_id);
 CREATE INDEX IF NOT EXISTS idx_share_events_report ON share_events(report_id);
+CREATE INDEX IF NOT EXISTS idx_orders_client ON orders(client_id);
+CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(stripe_checkout_session_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);

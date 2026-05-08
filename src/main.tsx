@@ -453,7 +453,8 @@ function buildPrompt(type: ReportType, personaId: PersonaId, prefs: AppState["pr
         "7. 雷区提醒：使用“谨慎尝试”“容易削弱协调感”等温和表达。",
         "8. 今日可执行的 3 个变美动作和小红书分享金句。",
       ]
-    : type.modules.map((item, index) => `${index + 1}. ${item}：围绕「${type.name}」展开，主题准确，并按照片性别呈现选择男性、女性或中性内容。`);
+    : topicModuleLines(type);
+  const topicVisual = topicVisualRules(type.id);
   return `你是一名专业的 AI 形象报告设计师，请基于用户上传的照片，生成一张高信息密度、适合保存和分享到小红书/朋友圈的中文个人形象报告长图。
 
 【输出要求】
@@ -481,6 +482,9 @@ function buildPrompt(type: ReportType, personaId: PersonaId, prefs: AppState["pr
 【必须包含模块】
 ${moduleLines.join("\n")}
 
+【专题边界】
+${topicBoundaryRules(type.id)}
+
 【文案风格】
 - 温柔、鼓励、自信，不制造外貌焦虑。
 - 不写“丑、土、脸大、显老、不适合你”等攻击性表达。
@@ -490,7 +494,63 @@ ${moduleLines.join("\n")}
 - 第一屏必须像杂志封面/高端形象顾问诊断页，有清晰人物主视觉、强标题、风格结论和 3 个关键信息锚点。
 - 中部使用多个模块卡片，信息密度高但不拥挤；底部包含行动清单、温馨提示和分享金句。
 - 男性报告视觉更克制高级，可用米白、炭黑、雾灰、橄榄绿、牛仔蓝、摩卡棕、银灰点缀，避免粉色可爱、爱心、蝴蝶结、花朵、闪闪少女风。
-- 女性报告可以温柔精致，但也要高级、有留白、有真实材质图，不要廉价粉色堆叠。`;
+- 女性报告可以温柔精致，但也要高级、有留白、有真实材质图，不要廉价粉色堆叠。
+${topicVisual}`;
+}
+
+function topicModuleLines(type: ReportType) {
+  if (type.id === "hair") {
+    return [
+      "1. 脸部轮廓、发质状态、发量感、当前发型气质。",
+      "2. 推荐发型：真实头部/半身缩略图，展示长度、刘海或额前区、卷度、层次和侧后区处理。",
+      "3. 发色推荐：必须包含 4-6 张同一人物正脸或半身人像效果示意图，分别展示不同发色上脸效果；旁边再放真实头发质感色卡。",
+      "4. 打理方式：洗护、吹风方向、造型品和理发师沟通关键词。",
+      "5. 雷区提醒和今日行动清单。",
+    ];
+  }
+  if (type.id === "makeup") {
+    return [
+      "1. 个人色彩倾向：冷暖、明度、饱和度、对比度。",
+      "2. 推荐色盘：主色、辅助色、点缀色、中性色。",
+      "3. 面部效果图：必须包含 5-8 张人物面部近景效果示意图，例如眉形、肤色均匀度、眼周精神度、发际/鬓角或轮廓、眼镜框型、上镜气色。",
+      "4. 面部清爽度建议：男性写眉形修整、肤色均匀、控油、黑眼圈、胡须/鬓角、眼镜框型；女性写底妆、眉形、眼妆、腮红、唇色。",
+      "5. 发色与贴脸颜色延展建议，只讲影响脸部气色的颜色。",
+      "6. 雷区提醒和今日行动清单。",
+    ];
+  }
+  if (type.id === "look") {
+    return [
+      "1. 日常 Look：给具体上装、下装、鞋和氛围关键词。",
+      "2. 通勤 / 上学 Look：给整套组合和适用场景。",
+      "3. 拍照 Look：给镜头友好的颜色、层次和姿态建议。",
+      "4. 聚会 Look：给更有存在感但不过度的搭配。",
+      "5. 不要只做四宫格。必须至少 8 张人物场景照片或全身/半身 Look 图，日常、通勤/上学、拍照、聚会每个场景至少 2 张人物图。",
+      "6. 场景对比表、今日可执行建议和总结语。",
+    ];
+  }
+  return type.modules.map((item, index) => `${index + 1}. ${item}：围绕「${type.name}」展开，主题准确，并按照片性别呈现选择男性、女性或中性内容。`);
+}
+
+function topicBoundaryRules(typeId: ReportType["id"]) {
+  const rules: Record<string, string> = {
+    comprehensive: "综合报告可以覆盖多个维度，但每个模块保持简洁，不能让穿搭、发型或面部任一专题吞掉整体版面。",
+    hair: "发型发色专题只讲发型、发色、脸型与打理。禁止混入服装搭配、OOTD、鞋包、腕表、帽子、穿搭清单或场景穿搭。",
+    makeup: "色彩面部专题只讲个人色彩、面部状态、上镜气色和面部细节。禁止混入穿搭套餐、OOTD、鞋包、整套服装推荐或场景穿搭。",
+    outfit: "穿搭配饰专题只讲服装、鞋包配饰、版型、材质和 OOTD，不要深入讲发型发色或面部清爽度。",
+    look: "场景 Look 专题可以讲服装和配饰，但每条建议都必须绑定具体场景；不要泛泛列单品。",
+  };
+  return rules[typeId] || rules.comprehensive;
+}
+
+function topicVisualRules(typeId: ReportType["id"]) {
+  const rules: Record<string, string> = {
+    comprehensive: "- 综合报告图片构成：人物主视觉、发型发色、色彩面部、穿搭配饰、场景 Look 都要覆盖。",
+    hair: "- 发型发色专题图片构成：顶部人物主视觉 1 张；推荐发型 3-4 张头部/半身图；发色上脸效果 4-6 张同一人物正脸或半身图；发色质感色卡 4-6 个。禁止出现穿搭套装、鞋包、腕表、OOTD 或全身搭配模块。",
+    makeup: "- 色彩面部专题图片构成：顶部人物主视觉 1 张；面部近景效果图 5-8 张；色盘 2-4 组；眉形/肤色/眼周/胡须鬓角或妆容细节局部图若干。禁止出现整套穿搭、鞋包、服装平铺和 OOTD 模块。",
+    outfit: "- 穿搭配饰专题图片构成：3 套 OOTD 全身图、核心单品图、鞋包配饰图和版型/颜色说明。",
+    look: "- 场景 Look 专题图片构成：不要做成只有 4 张场景图的四宫格；必须至少 8 张人物场景照片或全身/半身 Look 图，每个场景 2 张图，例如“日常 A/B、通勤 A/B、拍照 A/B、聚会 A/B”。可以补少量单品图，但不能只放衣服平铺。整体要像一本场景造型 mini lookbook。",
+  };
+  return rules[typeId] || rules.comprehensive;
 }
 
 function xhsCopy(type: ReportType, personaId: PersonaId, subjectGender: UserReport["subjectGender"] = "unknown") {
@@ -655,7 +715,7 @@ function App() {
   };
   const products = [...state.admin.products].filter((p) => p.enabled).sort((a, b) => a.sort - b.sort);
   const reportType = REPORT_TYPES.find((item) => item.id === state.reportType) || REPORT_TYPES[0];
-  const showComprehensiveReport = Boolean(state.product?.rights.comprehensive || state.rights.comprehensive > 0);
+  const showComprehensiveReport = state.rights.comprehensive > 0;
 
   function redeem(codeInput: string) {
     const code = codeInput.trim().toUpperCase();
@@ -686,8 +746,8 @@ function App() {
   function chooseReport(id: ReportTypeId) {
     const type = REPORT_TYPES.find((item) => item.id === id)!;
     if (state.rights[type.rightKey] <= 0) {
-      showToast(type.rightKey === "comprehensive" ? "综合报告仅全案探索卡可用" : "专题次数不足，请购买新券码");
-      nav("purchase");
+      showToast(type.rightKey === "comprehensive" ? "当前没有综合形象报告次数，请购买全案探索卡" : "专题次数不足，请购买新券码");
+      if (type.rightKey !== "comprehensive") nav("purchase");
       return;
     }
     setState((s) => ({ ...s, reportType: id, route: "upload" }));

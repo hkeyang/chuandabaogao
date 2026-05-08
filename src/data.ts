@@ -113,7 +113,7 @@ export const REPORT_TYPES: ReportType[] = [
     subtitle: "找到更适合你的发型、刘海、卷度和发色",
     rightKey: "topic",
     tags: ["发型推荐", "发色质感", "理发师关键词"],
-    modules: ["脸部轮廓", "发质状态", "推荐发型", "发色建议", "刘海长度", "打理难度"],
+    modules: ["脸部轮廓", "发质状态", "推荐发型", "不同发色正脸效果", "发色质感色卡", "打理难度"],
     asset: ASSETS.french,
   },
   {
@@ -122,7 +122,7 @@ export const REPORT_TYPES: ReportType[] = [
     subtitle: "找到你的专属提气色色盘和面部清爽方向",
     rightKey: "topic",
     tags: ["色盘", "眉形", "肤色状态", "上镜气色"],
-    modules: ["冷暖倾向", "推荐色盘", "肤色状态", "眉形", "面部清爽度", "上镜气色"],
+    modules: ["冷暖倾向", "推荐色盘", "面部近景效果", "肤色状态", "眉形", "上镜气色"],
     asset: ASSETS.color,
   },
   {
@@ -140,7 +140,7 @@ export const REPORT_TYPES: ReportType[] = [
     subtitle: "不同场景轻松变美，日常、通勤、拍照都能用",
     rightKey: "topic",
     tags: ["日常", "通勤", "拍照", "聚会"],
-    modules: ["日常 Look", "通勤 Look", "拍照 Look", "聚会 Look", "对比表"],
+    modules: ["日常 Look", "通勤 Look", "拍照 Look", "聚会 Look", "6-8 张场景照片", "对比表"],
     asset: ASSETS.hot,
   },
 ];
