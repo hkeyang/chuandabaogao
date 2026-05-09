@@ -11,6 +11,7 @@ interface D1Database {
 
 interface R2Bucket {
   put(key: string, value: Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+  get(key: string): Promise<{ body: ReadableStream<Uint8Array>; httpMetadata?: { contentType?: string } } | null>;
 }
 
 interface Fetcher {
@@ -71,6 +72,17 @@ type OrderRow = {
   created_at: string;
   updated_at: string;
 };
+type ReportRow = {
+  id: string;
+  report_image_key?: string | null;
+  xhs_cover_image_key?: string | null;
+  xhs_summary_image_key?: string | null;
+  report_image_url?: string | null;
+  xhs_cover_image_url?: string | null;
+  xhs_summary_image_url?: string | null;
+  status?: string | null;
+  error?: string | null;
+};
 
 const json = (data: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(data), {
@@ -118,6 +130,39 @@ function checkoutReturnUrl(env: Env, key: "success" | "cancel") {
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, "");
   if (key === "success") return env.STRIPE_SUCCESS_URL || `${base}/#/payment/success?session_id={CHECKOUT_SESSION_ID}`;
   return env.STRIPE_CANCEL_URL || `${base}/#/purchase`;
+}
+
+function reportAssetPath(reportId: string, kind: "report" | "cover" | "summary") {
+  return `/api/reports/${reportId}/${kind}.png`;
+}
+
+function reportAssetKey(reportId: string, kind: "report" | "cover" | "summary") {
+  if (kind === "report") return `reports/${reportId}.png`;
+  if (kind === "cover") return `reports/${reportId}-xhs-cover.png`;
+  return `reports/${reportId}-xhs-summary.png`;
+}
+
+function reportAssetFallbackKeys(reportId: string, kind: "report" | "cover" | "summary", row?: ReportRow | null) {
+  const keys = [
+    kind === "report" ? row?.report_image_key : kind === "cover" ? row?.xhs_cover_image_key : row?.xhs_summary_image_key,
+    reportAssetKey(reportId, kind),
+  ];
+  if (kind === "summary") {
+    keys.push(row?.xhs_cover_image_key, reportAssetKey(reportId, "cover"), row?.report_image_key, reportAssetKey(reportId, "report"));
+  }
+  if (kind === "cover") {
+    keys.push(row?.report_image_key, reportAssetKey(reportId, "report"));
+  }
+  return [...new Set(keys.filter((item): item is string => Boolean(item)))];
+}
+
+async function serveR2Object(object: { body: ReadableStream<Uint8Array>; httpMetadata?: { contentType?: string } }) {
+  return new Response(object.body, {
+    headers: {
+      "content-type": object.httpMetadata?.contentType || "image/png",
+      "cache-control": "private, max-age=31536000, immutable",
+    },
+  });
 }
 
 async function stripeRequest(env: Env, path: string, params: URLSearchParams) {
@@ -468,7 +513,7 @@ async function storeB64(env: Env, key: string, b64: string, type = "image/png") 
   if (!bucket) throw new Error("R2 binding is not configured");
   const binary = Uint8Array.from(atob(b64), (char) => char.charCodeAt(0));
   await bucket.put(key, binary, { httpMetadata: { contentType: type } });
-  return `${env.R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
+  return key;
 }
 
 async function storeRemoteImage(env: Env, key: string, sourceUrl: string) {
@@ -479,7 +524,7 @@ async function storeRemoteImage(env: Env, key: string, sourceUrl: string) {
   const type = response.headers.get("content-type") || "image/png";
   const binary = new Uint8Array(await response.arrayBuffer());
   await bucket.put(key, binary, { httpMetadata: { contentType: type } });
-  return `${env.R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
+  return key;
 }
 
 async function handleApi(request: Request, env: Env, url: URL) {
@@ -497,6 +542,20 @@ async function handleApi(request: Request, env: Env, url: URL) {
         methods: ["wechat_pay", "alipay"],
       },
     });
+  }
+
+  const reportAssetMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/(report|cover|summary)\.(png|svg)$/);
+  if (request.method === "GET" && reportAssetMatch) {
+    const [, reportId, kind] = reportAssetMatch;
+    const report = await env.DB.prepare("SELECT id, report_image_key, xhs_cover_image_key, xhs_summary_image_key FROM reports WHERE id = ?").bind(reportId).first<ReportRow>();
+    if (!report) return json({ error: "report_not_found" }, { status: 404 });
+    const bucket = (env as { R2?: R2Bucket }).R2;
+    if (!bucket) return json({ error: "r2_not_configured" }, { status: 503 });
+    for (const key of reportAssetFallbackKeys(reportId, kind as "report" | "cover" | "summary", report)) {
+      const object = await bucket.get(key);
+      if (object?.body) return serveR2Object(object);
+    }
+    return json({ error: "report_asset_not_found" }, { status: 404 });
   }
 
   if (request.method === "POST" && url.pathname === "/api/orders/checkout") {
@@ -724,8 +783,9 @@ async function handleApi(request: Request, env: Env, url: URL) {
     const reportId = randomId("rpt");
     const prompt = promptFor(input);
     const rightKey = String(input.right_key || "topic");
-    let reportImageUrl = "";
-    let coverImageUrl = "";
+    let reportImageKey = "";
+    let coverImageKey = "";
+    let summaryImageKey = "";
     let subjectGender = "unknown";
     let status = "completed";
     let error = "";
@@ -737,33 +797,37 @@ async function handleApi(request: Request, env: Env, url: URL) {
         : "";
       subjectGender = String(generated.subject_gender || generatedSubject || image.subject_gender || "unknown");
       if (typeof image.b64_json === "string") {
-        reportImageUrl = await storeB64(env, `reports/${reportId}.png`, image.b64_json);
+        reportImageKey = await storeB64(env, reportAssetKey(reportId, "report"), image.b64_json);
       }
       if (typeof image.xhs_cover_b64_json === "string") {
-        coverImageUrl = await storeB64(env, `reports/${reportId}-xhs-cover.png`, image.xhs_cover_b64_json);
+        coverImageKey = await storeB64(env, reportAssetKey(reportId, "cover"), image.xhs_cover_b64_json);
       }
       if (typeof image.image_url === "string") {
-        reportImageUrl = await storeRemoteImage(env, `reports/${reportId}.png`, image.image_url);
+        reportImageKey = await storeRemoteImage(env, reportAssetKey(reportId, "report"), image.image_url);
       }
       if (typeof image.xhs_cover_image_url === "string") {
-        coverImageUrl = await storeRemoteImage(env, `reports/${reportId}-xhs-cover.png`, image.xhs_cover_image_url);
+        coverImageKey = await storeRemoteImage(env, reportAssetKey(reportId, "cover"), image.xhs_cover_image_url);
       }
-      if (!reportImageUrl) {
+      if (!reportImageKey) {
         throw new Error("image generation completed without report image");
       }
     } catch (err) {
       status = "failed";
       error = err instanceof Error ? err.message : "image generation failed";
     }
+    summaryImageKey = coverImageKey || reportImageKey;
+    const reportImageUrl = reportAssetPath(reportId, "report");
+    const coverImageUrl = reportAssetPath(reportId, "cover");
+    const summaryImageUrl = reportAssetPath(reportId, "summary");
     const db = (env as { DB?: D1Database }).DB;
     if (db) {
       await db.prepare(`INSERT INTO reports
-        (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_url, xhs_cover_image_url, created_at, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`)
-        .bind(reportId, String(input.client_id || ""), String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageUrl, coverImageUrl, now(), status === "completed" ? now() : null)
+        (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_key, xhs_cover_image_key, xhs_summary_image_key, report_image_url, xhs_cover_image_url, xhs_summary_image_url, created_at, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(reportId, String(input.client_id || ""), String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageKey, coverImageKey, summaryImageKey, reportImageUrl, coverImageUrl, summaryImageUrl, now(), status === "completed" ? now() : null)
         .run();
     }
-    return json({ report_id: reportId, status, error, prompt, subject_gender: subjectGender, report_image_url: reportImageUrl, xhs_cover_image_url: coverImageUrl });
+    return json({ report_id: reportId, status, error, prompt, subject_gender: subjectGender, report_image_url: reportImageUrl, xhs_cover_image_url: coverImageUrl, xhs_summary_image_url: summaryImageUrl });
   }
 
   if (request.method === "POST" && url.pathname === "/api/reports/prepare-xhs-share") {
@@ -772,12 +836,16 @@ async function handleApi(request: Request, env: Env, url: URL) {
     await env.DB.prepare("INSERT INTO share_events (id, report_id, platform, action, device_info, created_at) VALUES (?, ?, 'xhs', 'prepare', ?, ?)")
       .bind(randomId("share"), reportId, request.headers.get("user-agent") || "", now())
       .run();
-    const report = await env.DB.prepare("SELECT * FROM reports WHERE id = ?").bind(reportId).first<Record<string, string>>();
+    const report = await env.DB.prepare("SELECT * FROM reports WHERE id = ?").bind(reportId).first<ReportRow>();
+    if (!report) return json({ error: "report_not_found" }, { status: 404 });
+    const reportImageUrl = reportAssetPath(reportId, "report");
+    const coverImageUrl = reportAssetPath(reportId, "cover");
+    const summaryImageUrl = reportAssetPath(reportId, "summary");
     return json({
       report_id: reportId,
-      cover_image_url: report?.xhs_cover_image_url || "",
-      report_image_url: report?.report_image_url || "",
-      summary_image_url: report?.xhs_summary_image_url || report?.xhs_cover_image_url || "",
+      cover_image_url: coverImageUrl,
+      report_image_url: reportImageUrl,
+      summary_image_url: summaryImageUrl,
       share_title: `AI 形象报告把我的风格路线理清楚了`,
       share_text: `刚生成了一份 AI 个人形象报告，重点不是大改，是把发型、色彩、面部状态、穿搭和场景感理顺。\n\n#AI形象报告 #形象提升 #发型建议 #穿搭参考`,
       copy_text: `刚生成了一份 AI 个人形象报告，重点不是大改，是把发型、色彩、面部状态、穿搭和场景感理顺。\n\n#AI形象报告 #形象提升 #发型建议 #穿搭参考`,

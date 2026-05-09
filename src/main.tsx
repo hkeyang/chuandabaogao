@@ -812,16 +812,17 @@ function App() {
         setState((latest) => {
           const rights = { ...latest.rights };
           rights[rightKey] = Math.max(0, rights[rightKey] - 1);
+          const reportId = String(data.report_id || `rpt_${Date.now()}`);
           const report: UserReport = {
-            id: String(data.report_id || `rpt_${Date.now()}`),
+            id: reportId,
             type: type.id,
             name: type.name,
             createdAt: now(),
             persona: personaId,
             photoDataUrl: latest.photoDataUrl,
-            reportImageUrl: data.report_image_url || "",
-            coverImageUrl: data.xhs_cover_image_url || "",
-            summaryImageUrl: data.xhs_summary_image_url || data.summary_image_url || data.xhs_cover_image_url || "",
+            reportImageUrl: reportAssetUrl(reportId, "report"),
+            coverImageUrl: reportAssetUrl(reportId, "cover"),
+            summaryImageUrl: reportAssetUrl(reportId, "summary"),
             prompt: data.prompt || prompt,
             status: data.status || "completed",
             error: data.error || "",
@@ -1938,6 +1939,10 @@ type ShareAssets = {
   platform_actions?: Partial<Record<SharePlatform, { label: string; deep_link: string; hint: string }>>;
 };
 
+function reportAssetUrl(reportId: string, kind: "report" | "cover" | "summary") {
+  return `/api/reports/${reportId}/${kind}.png`;
+}
+
 function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state: AppState; showComprehensiveReport: boolean; nav: (r: Route) => void; showToast: (t: string) => void }) {
   const report = state.reports[0];
   const [shareState, setShareState] = useState<{ open: boolean; platform: SharePlatform; loading: boolean; assets?: ShareAssets; error?: string }>({
@@ -1949,8 +1954,7 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
   if (!report) return <Empty title="还没有生成报告" text="请先选择报告类型并完成生成。" action="选择报告" onClick={() => nav("select")} />;
   const type = REPORT_TYPES.find((item) => item.id === report.type)!;
   const persona = PERSONAS[report.persona];
-  const sharePhoto = report.coverImageUrl || state.photoUrl;
-  const reportDownloadUrl = report.reportImageUrl || `/api/reports/${report.id}/report.svg`;
+  const reportDownloadUrl = reportAssetUrl(report.id, "report");
 
   if (report.status === "failed" && !report.reportImageUrl) {
     return <Empty title="报告生成失败" text={report.error || "没有拿到完整报告图，请重新生成。"} action="重新生成" onClick={() => nav("confirm")} />;
@@ -1990,9 +1994,9 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
           report_id: report.id,
           report_type: type.id,
           style_persona: persona.title,
-          cover_image_url: report.coverImageUrl || sharePhoto,
+          cover_image_url: reportAssetUrl(report.id, "cover"),
           report_image_url: reportDownloadUrl,
-          summary_image_url: report.summaryImageUrl || report.coverImageUrl || sharePhoto,
+          summary_image_url: reportAssetUrl(report.id, "summary"),
           share_title: `${type.name}已准备好`,
           share_text: xhsCopy(type, report.persona, report.subjectGender),
           copy_text: xhsCopy(type, report.persona, report.subjectGender),
@@ -2030,7 +2034,7 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
             <b>页面预览</b>
             <p>屏幕里看的是清晰可读的移动版报告，保存版会单独导出高清长图。</p>
           </div>
-          <span>{report.reportImageUrl ? "高清下载已就绪" : "使用本地模板兜底"}</span>
+          <span>{report.status === "completed" ? "高清下载已就绪" : "使用本地模板兜底"}</span>
         </div>
         <ReportCanvas id="report-card" type={type} persona={persona} className="result-preview-report" />
       </section>
@@ -2045,7 +2049,7 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
         <ShareSheet
           report={report}
           type={type}
-          photo={sharePhoto}
+          photo={reportAssetUrl(report.id, "cover")}
           platform={shareState.platform}
           assets={shareState.assets}
           loading={shareState.loading}
@@ -2219,9 +2223,9 @@ function ShareSheet({
 }) {
   const persona = PERSONAS[report.persona];
   const copy = assets?.copy_text || xhsCopy(type, report.persona, report.subjectGender);
-  const coverImage = assets?.cover_image_url || report.coverImageUrl || photo;
-  const summaryImage = assets?.summary_image_url || report.summaryImageUrl || coverImage;
-  const reportImage = assets?.report_image_url || report.reportImageUrl || `/api/reports/${report.id}/report.svg`;
+  const coverImage = reportAssetUrl(report.id, "cover");
+  const summaryImage = reportAssetUrl(report.id, "summary");
+  const reportImage = reportAssetUrl(report.id, "report");
   const platformMeta: Record<SharePlatform, { title: string; desc: string; action: string; deepLink: string }> = {
     xhs: { title: "分享到小红书", desc: "先保存封面、摘要和完整报告，再复制文案发布", action: "打开小红书", deepLink: "xhsdiscover://" },
     wechat: { title: "分享到微信", desc: "先保存图片，再把文案发给朋友或自己收藏", action: "打开微信", deepLink: "weixin://dl/chat" },
@@ -2233,9 +2237,9 @@ function ShareSheet({
     wechat: { label: "微信", icon: HOME_ASSETS.wechat },
     moments: { label: "朋友圈", icon: HOME_ASSETS.moments },
   };
-  const saveCover = () => downloadAsset(coverImage, `aisea-${platform}-cover.${coverImage.endsWith(".svg") ? "svg" : "png"}`, showToast);
-  const saveSummary = () => downloadAsset(summaryImage, `aisea-${platform}-summary.${summaryImage.endsWith(".svg") ? "svg" : "png"}`, showToast);
-  const saveReport = () => downloadAsset(reportImage, `aisea-${platform}-report.${reportImage.endsWith(".svg") ? "svg" : "png"}`, showToast);
+  const saveCover = () => downloadAsset(coverImage, `aisea-${platform}-cover.png`, showToast);
+  const saveSummary = () => downloadAsset(summaryImage, `aisea-${platform}-summary.png`, showToast);
+  const saveReport = () => downloadAsset(reportImage, `aisea-${platform}-report.png`, showToast);
   const copyShare = () => copyText(copy, showToast);
   const openPlatform = () => openShareLink(meta.deepLink, showToast, meta.action);
   const useSystemShare = async () => {
