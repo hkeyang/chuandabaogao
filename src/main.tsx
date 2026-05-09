@@ -1064,9 +1064,9 @@ function HomePackageCard({ product, showToast }: { product: Product; showToast: 
   const full = product.id === "full";
   const icon = full ? HOME_ASSETS.ticketOrange : product.id === "triple" ? HOME_ASSETS.ticketPink : HOME_ASSETS.ticketOutline;
   const homeDescription: Record<ProductId, string> = {
-    single: "专题报告 ×1",
-    triple: "专题报告 ×3",
-    full: "综合形象报告 ×1\n专题报告 ×3",
+    single: "专题 ×1",
+    triple: "专题 ×3",
+    full: "综合 ×1\n专题 ×3",
   };
   const handleBuy = () => product.purchaseLink ? window.open(product.purchaseLink, "_blank", "noopener") : showToast("商品链接待配置，请先在后台填写闲鱼链接");
   return (
@@ -1109,7 +1109,7 @@ function SuccessRedirectPage({ nav }: { nav: (r: Route) => void }) {
 }
 
 function RightsPills({ rights, showComprehensiveReport = true }: { rights: Rights; showComprehensiveReport?: boolean }) {
-  return <div className="rights-pills">{showComprehensiveReport && <span><ReceiptText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}<span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span></div>;
+  return <div className="rights-pills">{showComprehensiveReport && <span><ReceiptText size={16} />综合剩余 <b>{rights.comprehensive}</b></span>}<span><KeyRound size={16} />专题剩余 <b>{rights.topic}</b></span></div>;
 }
 
 function SectionDivider({ title }: { title: string }) {
@@ -1170,14 +1170,9 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
         <h1>选择报告类型</h1>
       </header>
 
-      <section className="choose-lead">
-        <span>先看综合，再拆专题</span>
-        <p>一张综合图先看整体方向，四个专题再分别补发型、色彩、穿搭和场景。</p>
-      </section>
-
       <section className="choose-quota choose-quota-inline" aria-label="剩余报告次数">
-        {showComprehensiveReport && <span><ReceiptText />综合报告剩余 <b>{rights.comprehensive}</b></span>}
-        <span><KeyRound />专题报告剩余 <b>{rights.topic}</b></span>
+        {showComprehensiveReport && <span><ReceiptText />综合剩余 <b>{rights.comprehensive}</b></span>}
+        <span><KeyRound />专题剩余 <b>{rights.topic}</b></span>
       </section>
 
       {showComprehensiveReport && (
@@ -1194,9 +1189,9 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
         </section>
       )}
 
-      <section className="choose-topic-section" aria-label="专题报告">
-        <SectionDivider title="专题报告" />
-        <div ref={topicRef} className="choose-topic-rail" aria-label="专题报告横向滑动列表">
+      <section className="choose-topic-section" aria-label="报告类型">
+        <div className="choose-topic-divider" aria-hidden="true" />
+        <div ref={topicRef} className="choose-topic-rail" aria-label="报告类型横向滑动列表">
           {topics.map((topic, index) => (
             <button
               key={topic.id}
@@ -1232,8 +1227,6 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
           ))}
         </div>
       </section>
-
-      <footer className="choose-tip">✦ 可基于同一张照片继续探索不同方向 ✦</footer>
     </main>
   );
 }
@@ -2086,8 +2079,8 @@ function ResultActionBar({ rights, showComprehensiveReport, onDownload, onGenera
   return (
     <footer className="result-bottom-bar">
       <div className="result-rights">
-        {showComprehensiveReport && <span><FileText size={16} />综合报告剩余 <b>{rights.comprehensive}</b></span>}
-        <span><KeyRound size={16} />专题报告剩余 <b>{rights.topic}</b></span>
+        {showComprehensiveReport && <span><FileText size={16} />综合剩余 <b>{rights.comprehensive}</b></span>}
+        <span><KeyRound size={16} />专题剩余 <b>{rights.topic}</b></span>
       </div>
       <div className="result-primary-actions">
         <button className="result-download-btn" onClick={onDownload}><Download /><span>下载完整报告<small>高清大图，直接保存</small></span></button>
