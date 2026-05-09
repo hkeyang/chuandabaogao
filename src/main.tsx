@@ -801,10 +801,12 @@ function App() {
             prompt,
           }),
         });
-        if (!response.ok) throw new Error(`generate failed with HTTP ${response.status}`);
-        const data = await response.json();
-        if (data.status && data.status !== "completed") throw new Error(data.error || "生成失败，请重试");
-        if (!data.report_image_url) throw new Error("报告图生成失败，请重新生成");
+        const data = await response.json().catch(() => ({} as Record<string, unknown>));
+        if (!response.ok) {
+          throw new Error(String(data.error || data.message || `generate failed with HTTP ${response.status}`));
+        }
+        if (data.status && data.status !== "completed") throw new Error(String(data.error || data.message || "生成失败，请重试"));
+        if (!data.report_image_url) throw new Error(String(data.error || data.message || "报告图生成失败，请重新生成"));
         if (generationId !== generationSeqRef.current) return;
         const rightKey = type.rightKey;
         setState((latest) => {
@@ -1090,15 +1092,42 @@ function ProductCard({ product, nav, showToast }: { product: Product; nav: (r: R
 }
 
 function PurchasePage({ products, nav, showToast }: { products: Product[]; nav: (r: Route) => void; showToast: (t: string) => void }) {
-  return <main className="page"><PageTitle title="购买兑换码" text="购买后会获得兑换码，回到首页输入兑换码即可生成报告。当前闲鱼链接可在后台随时配置。" nav={nav} /><div className="product-list">{products.map((p) => <ProductCard key={p.id} product={p} nav={nav} showToast={showToast} />)}</div><FAQ /></main>;
+  return <main className="page"><PageHeader title="购买兑换码" description="购买后会获得兑换码，回到首页输入兑换码即可生成报告。当前闲鱼链接可在后台随时配置。" onBack={() => nav("home")} backLabel="返回首页" align="left" /><div className="product-list">{products.map((p) => <ProductCard key={p.id} product={p} nav={nav} showToast={showToast} />)}</div><FAQ /></main>;
 }
 
 function FAQ() {
   return <section className="section faq"><h2>常见问题</h2>{[["兑换码多久有效？", "兑换券自生成日起 30 天内有效，请尽快使用。"], ["可以基于同一张照片继续生成吗？", "可以。三次探索卡和全案探索卡可继续探索不同专题。"], ["报告可以分享吗？", "可以。结果页支持下载报告，并一键准备小红书封面图和文案。"]].map(([q, a]) => <details key={q} open><summary>{q}</summary><p>{a}</p></details>)}</section>;
 }
 
-function PageTitle({ title, text, nav }: { title: string; text: string; nav: (r: Route) => void }) {
-  return <div className="page-title"><button className="round-back" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><div><h1>{title}</h1><p>{text}</p></div></div>;
+function PageHeader({
+  title,
+  onBack,
+  backLabel = "返回上一页",
+  description,
+  action,
+  align = "center",
+}: {
+  title: string;
+  onBack: () => void;
+  backLabel?: string;
+  description?: string;
+  action?: React.ReactNode;
+  align?: "left" | "center";
+}) {
+  return (
+    <header className={`page-header page-header--${align}`}>
+      <button className="page-header__back" onClick={onBack} aria-label={backLabel}>
+        <ArrowLeft aria-hidden="true" />
+      </button>
+      <div className="page-header__body">
+        <h1>{title}</h1>
+        {description && <p>{description}</p>}
+      </div>
+      <div className="page-header__action">
+        {action || <span className="page-header__spacer" aria-hidden="true" />}
+      </div>
+    </header>
+  );
 }
 
 function SuccessRedirectPage({ nav }: { nav: (r: Route) => void }) {
@@ -1165,10 +1194,7 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
     <main className="choose-report-page">
       <div className="choose-bg-star choose-bg-star-a">✦</div>
       <div className="choose-bg-star choose-bg-star-b">✦</div>
-      <header className="choose-header">
-        <button className="choose-back" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button>
-        <h1>选择报告类型</h1>
-      </header>
+      <PageHeader title="选择报告类型" onBack={() => nav("home")} backLabel="返回首页" />
 
       <section className="choose-quota choose-quota-inline" aria-label="剩余报告次数">
         {showComprehensiveReport && <span><ReceiptText />综合剩余 <b>{rights.comprehensive}</b></span>}
@@ -1356,12 +1382,7 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
 
   return (
     <main className="page upload-page">
-      <header className="upload-header">
-        <button className="upload-back-btn" onClick={() => nav("select")} aria-label="返回">
-          <ArrowLeft size={30} />
-        </button>
-        <h1>上传照片</h1>
-      </header>
+      <PageHeader title="上传照片" onBack={() => nav("select")} backLabel="返回选择报告" align="left" />
 
       <section className="photo-tips-card">
         <div className="tips-title"><img src={PHOTO_UPLOAD_ASSETS.tinyStars} alt="" />拍照小贴士</div>
@@ -1532,7 +1553,11 @@ function PreferencesPage({
       </div>
 
       <div className="preference-page__inner">
-        <PreferenceHeader onBack={() => nav("upload")} />
+        <PageHeader title="生成偏好" onBack={() => nav("upload")} backLabel="返回上传" />
+        <div className="preference-header__decor" aria-hidden="true">
+          <SafeAssetImage className="decor-twinkle decor-twinkle--1" src={PREFERENCE_ASSETS.twinkleWhite} alt="" />
+          <SafeAssetImage className="decor-twinkle decor-twinkle--2" src={PREFERENCE_ASSETS.twinklePink} alt="" />
+        </div>
 
         {preferenceSections.map((section) => (
           <PreferenceSectionCard
@@ -1558,23 +1583,6 @@ function PreferencesPage({
 
       {reuploadOpen && <ReuploadDialog onCancel={() => setReuploadOpen(false)} onConfirm={handleReuploadConfirm} />}
     </main>
-  );
-}
-
-function PreferenceHeader({ onBack }: { onBack: () => void }) {
-  return (
-    <header className="preference-header">
-      <button className="preference-back" onClick={onBack} aria-label="返回上一页">
-        <ArrowLeft size={30} />
-      </button>
-      <div className="preference-header__copy">
-        <h1>生成偏好</h1>
-      </div>
-      <div className="preference-header__decor" aria-hidden="true">
-        <SafeAssetImage className="decor-twinkle decor-twinkle--1" src={PREFERENCE_ASSETS.twinkleWhite} alt="" />
-        <SafeAssetImage className="decor-twinkle decor-twinkle--2" src={PREFERENCE_ASSETS.twinklePink} alt="" />
-      </div>
-    </header>
   );
 }
 
@@ -1685,13 +1693,7 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
       <img className="confirm-bg confirm-bg-left" src={CONFIRM_GENERATE_ASSETS.decoSmall} alt="" aria-hidden="true" />
       <img className="confirm-bg confirm-bg-right" src={CONFIRM_GENERATE_ASSETS.decoLarge} alt="" aria-hidden="true" />
 
-      <header className="confirm-header">
-        <button className="confirm-back" onClick={() => nav("preferences")} aria-label="返回修改">
-          <img src={CONFIRM_GENERATE_ASSETS.back} alt="" aria-hidden="true" />
-        </button>
-        <h1>确认生成</h1>
-        <span />
-      </header>
+      <PageHeader title="确认生成" onBack={() => nav("preferences")} backLabel="返回修改" />
 
       <section className="confirm-report-card confirm-fade-in" style={{ animationDelay: "0ms" }}>
         <div className="confirm-report-head">
@@ -1803,13 +1805,7 @@ function ProgressPage({ progress, hasReport, error, nav, showToast }: { progress
         <img className="progress-decoration soft-dot-a" src={REPORT_PROGRESS_ASSETS.lightDot} alt="" aria-hidden="true" />
         <img className="progress-decoration soft-dot-b" src={REPORT_PROGRESS_ASSETS.lightDot} alt="" aria-hidden="true" />
 
-        <header className="progress-nav">
-          <button className="progress-back" onClick={() => nav("home")} aria-label="返回上一页">
-            <ArrowLeft size={26} />
-          </button>
-          <h2>生成进度</h2>
-          <span />
-        </header>
+        <PageHeader title="生成进度" onBack={() => nav("home")} backLabel="返回首页" />
 
         <section className="progress-title">
           <div className="progress-title-decor">
@@ -2017,7 +2013,7 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
 
   return (
     <main className="result-page">
-      <ResultNavbar nav={nav} onShare={() => prepareShareAssets("xhs")} />
+      <PageHeader title="查看结果" onBack={() => nav("home")} backLabel="返回首页" action={<button className="page-header__action-btn" onClick={() => prepareShareAssets("xhs")} aria-label="分享报告"><Share2 aria-hidden="true" /></button>} />
       <section className="result-summary">
         <div className="result-summary-copy">
           <span className="result-summary-eyebrow">本次结果</span>
@@ -2061,10 +2057,6 @@ function ResultPage({ state, showComprehensiveReport, nav, showToast }: { state:
       )}
     </main>
   );
-}
-
-function ResultNavbar({ nav, onShare }: { nav: (r: Route) => void; onShare: () => void }) {
-  return <header className="result-navbar"><button className="result-nav-btn" onClick={() => nav("home")} aria-label="返回首页"><ArrowLeft /></button><h1>查看结果</h1><button className="result-nav-btn" onClick={onShare} aria-label="分享报告"><Share2 /></button></header>;
 }
 
 function buildShareActions() {
