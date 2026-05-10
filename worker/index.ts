@@ -919,66 +919,95 @@ async function handleApi(request: Request, env: Env, url: URL) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/reports/generate") {
-    const input = await body(request);
     const reportId = randomId("rpt");
-    const prompt = promptFor(input);
-    const rightKey = String(input.right_key || "topic");
-    const clientId = String(input.client_id || "");
-    const entitlement = await availableEntitlement(env, clientId, rightKey);
-    if (!entitlement) {
-      return json({
-        error: "entitlement_required",
-        message: rightKey === "comprehensive" ? "请先购买全案探索卡，再生成综合报告。" : "请先完成支付，再生成完整专题报告。",
-      }, { status: 402 });
-    }
-    let reportImageKey = "";
-    let coverImageKey = "";
-    let summaryImageKey = "";
-    let subjectGender = "unknown";
-    let status = "completed";
-    let error = "";
     try {
-      const generated = await imageGenerate(env, input, prompt);
-      const image = Array.isArray(generated.data) ? generated.data[0] as Json : generated;
-      const generatedSubject = typeof generated.subject === "object" && generated.subject
-        ? (generated.subject as Json).gender
-        : "";
-      subjectGender = String(generated.subject_gender || generatedSubject || image.subject_gender || "unknown");
-      if (typeof image.b64_json === "string") {
-        reportImageKey = await storeB64(env, reportAssetKey(reportId, "report"), image.b64_json);
+      const input = await body(request);
+      const prompt = promptFor(input);
+      const rightKey = String(input.right_key || "topic");
+      const clientId = String(input.client_id || "");
+      const entitlement = await availableEntitlement(env, clientId, rightKey);
+      if (!entitlement) {
+        return json({
+          error: "entitlement_required",
+          message: rightKey === "comprehensive" ? "请先购买全案探索卡，再生成综合报告。" : "请先完成支付，再生成完整专题报告。",
+        }, { status: 402 });
       }
-      if (typeof image.xhs_cover_b64_json === "string") {
-        coverImageKey = await storeB64(env, reportAssetKey(reportId, "cover"), image.xhs_cover_b64_json);
+      let reportImageKey = "";
+      let coverImageKey = "";
+      let summaryImageKey = "";
+      let subjectGender = "unknown";
+      let status = "completed";
+      let error = "";
+      let reportImageUrl = reportAssetPath(reportId, "report");
+      let coverImageUrl = reportAssetPath(reportId, "cover");
+      let summaryImageUrl = reportAssetPath(reportId, "summary");
+      try {
+        const generated = await imageGenerate(env, input, prompt);
+        const image = Array.isArray(generated.data) ? generated.data[0] as Json : generated;
+        const generatedSubject = typeof generated.subject === "object" && generated.subject
+          ? (generated.subject as Json).gender
+          : "";
+        subjectGender = String(generated.subject_gender || generatedSubject || image.subject_gender || "unknown");
+        if (typeof image.b64_json === "string") {
+          reportImageKey = await storeB64(env, reportAssetKey(reportId, "report"), image.b64_json);
+        }
+        if (typeof image.xhs_cover_b64_json === "string") {
+          coverImageKey = await storeB64(env, reportAssetKey(reportId, "cover"), image.xhs_cover_b64_json);
+        }
+        if (typeof image.image_url === "string") {
+          reportImageKey = await storeRemoteImage(env, reportAssetKey(reportId, "report"), image.image_url);
+        }
+        if (typeof image.xhs_cover_image_url === "string") {
+          coverImageKey = await storeRemoteImage(env, reportAssetKey(reportId, "cover"), image.xhs_cover_image_url);
+        }
+        if (!reportImageKey) {
+          throw new Error("image generation completed without report image");
+        }
+      } catch (err) {
+        status = "failed";
+        error = err instanceof Error ? err.message : "image generation failed";
+        console.error("[reports/generate] image pipeline failed", {
+          reportId,
+          clientId,
+          rightKey,
+          error,
+        });
       }
-      if (typeof image.image_url === "string") {
-        reportImageKey = await storeRemoteImage(env, reportAssetKey(reportId, "report"), image.image_url);
+      summaryImageKey = coverImageKey || reportImageKey;
+      reportImageUrl = reportAssetPath(reportId, "report");
+      coverImageUrl = reportAssetPath(reportId, "cover");
+      summaryImageUrl = reportAssetPath(reportId, "summary");
+      const db = (env as { DB?: D1Database }).DB;
+      if (db) {
+        await db.prepare(`INSERT INTO reports
+          (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_key, xhs_cover_image_key, xhs_summary_image_key, report_image_url, xhs_cover_image_url, xhs_summary_image_url, created_at, completed_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(reportId, clientId, String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageKey, coverImageKey, summaryImageKey, reportImageUrl, coverImageUrl, summaryImageUrl, now(), status === "completed" ? now() : null)
+          .run();
       }
-      if (typeof image.xhs_cover_image_url === "string") {
-        coverImageKey = await storeRemoteImage(env, reportAssetKey(reportId, "cover"), image.xhs_cover_image_url);
+      if (status === "completed") {
+        await consumeEntitlement(env, entitlement.id, rightKey);
       }
-      if (!reportImageKey) {
-        throw new Error("image generation completed without report image");
-      }
+      return json({
+        report_id: reportId,
+        status,
+        error,
+        prompt,
+        subject_gender: subjectGender,
+        report_image_url: reportImageUrl,
+        xhs_cover_image_url: coverImageUrl,
+        xhs_summary_image_url: summaryImageUrl,
+      });
     } catch (err) {
-      status = "failed";
-      error = err instanceof Error ? err.message : "image generation failed";
+      const message = err instanceof Error ? err.message : "report_generation_failed";
+      console.error("[reports/generate] unexpected failure", { reportId, message });
+      return json({
+        report_id: reportId,
+        status: "failed",
+        error: message,
+        message,
+      }, { status: 200 });
     }
-    if (status === "completed") {
-      await consumeEntitlement(env, entitlement.id, rightKey);
-    }
-    summaryImageKey = coverImageKey || reportImageKey;
-    const reportImageUrl = reportAssetPath(reportId, "report");
-    const coverImageUrl = reportAssetPath(reportId, "cover");
-    const summaryImageUrl = reportAssetPath(reportId, "summary");
-    const db = (env as { DB?: D1Database }).DB;
-    if (db) {
-      await db.prepare(`INSERT INTO reports
-        (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_key, xhs_cover_image_key, xhs_summary_image_key, report_image_url, xhs_cover_image_url, xhs_summary_image_url, created_at, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .bind(reportId, clientId, String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageKey, coverImageKey, summaryImageKey, reportImageUrl, coverImageUrl, summaryImageUrl, now(), status === "completed" ? now() : null)
-        .run();
-    }
-    return json({ report_id: reportId, status, error, prompt, subject_gender: subjectGender, report_image_url: reportImageUrl, xhs_cover_image_url: coverImageUrl, xhs_summary_image_url: summaryImageUrl });
   }
 
   if (request.method === "POST" && url.pathname === "/api/reports/prepare-xhs-share") {

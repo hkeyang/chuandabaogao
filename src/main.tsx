@@ -1011,9 +1011,16 @@ function startGenerate() {
             prompt,
           }),
         });
-        const data = await response.json().catch(() => ({} as Record<string, unknown>));
+        const raw = await response.text();
+        const data: Record<string, unknown> = raw ? (() => {
+          try {
+            return JSON.parse(raw) as Record<string, unknown>;
+          } catch {
+            return { raw };
+          }
+        })() : {};
         if (!response.ok) {
-          throw new Error(String(data.error || data.message || `generate failed with HTTP ${response.status}`));
+          throw new Error(String(data.error || data.message || data.raw || `generate failed with HTTP ${response.status}`));
         }
         if (data.status && data.status !== "completed") throw new Error(String(data.error || data.message || "生成失败，请重试"));
         if (!data.report_image_url) throw new Error(String(data.error || data.message || "报告图生成失败，请重新生成"));
@@ -1033,10 +1040,10 @@ function startGenerate() {
             reportImageUrl: reportAssetUrl(reportId, "report"),
             coverImageUrl: reportAssetUrl(reportId, "cover"),
             summaryImageUrl: reportAssetUrl(reportId, "summary"),
-            prompt: data.prompt || prompt,
-            status: data.status || "completed",
-            error: data.error || "",
-            subjectGender: data.subject_gender || "unknown",
+            prompt: String(data.prompt || prompt),
+            status: data.status === "failed" ? "failed" : "completed",
+            error: String(data.error || ""),
+            subjectGender: String(data.subject_gender || "unknown") as UserReport["subjectGender"],
           };
           return {
             ...latest,
@@ -1084,8 +1091,8 @@ function startGenerate() {
       case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
-      case "preanalysis": return <PreAnalysisPage state={state} setState={setState} type={reportType} products={products} nav={nav} onAnalyze={createPreAnalysis} onGenerate={startGenerate} onOpenPaywall={(reason) => setPaywall({ open: true, reason })} />;
-      case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} />;
+      case "preanalysis": return <PreAnalysisPage state={state} setState={setState} type={reportType} products={products} nav={nav} onAnalyze={createPreAnalysis} />;
+      case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} onOpenPaywall={(reason) => setPaywall({ open: true, reason })} />;
       case "progress": return <ProgressPage progress={state.progress} hasReport={!state.isGenerating && state.reports.length > 0} error={state.generationError} nav={nav} showToast={showToast} />;
       case "result": return <ResultPage state={state} showComprehensiveReport={showComprehensiveReport} nav={nav} showToast={showToast} />;
       case "admin": return <AdminPage state={state} setState={setState} updateAdmin={updateAdmin} showToast={showToast} />;
@@ -1096,7 +1103,7 @@ function startGenerate() {
   return (
     <>
       <Shell state={state} nav={nav}>{page}</Shell>
-      {paywall.open && <PaywallSheet paying={paying} onClose={() => setPaywall({ open: false })} onCheckout={startCheckout} />}
+      {paywall.open && <PaywallSheet paying={paying} reason={paywall.reason} onClose={() => setPaywall({ open: false })} onCheckout={startCheckout} />}
       {toast && <div className="toast show">{toast.text}</div>}
     </>
   );
@@ -1165,11 +1172,11 @@ function HomePage({ state, nav }: { state: AppState; nav: (r: Route) => void }) 
         <div className="home-hero-actions">
           <button className="home-cta primary" onClick={() => nav("select")}>
             <img src={HOME_ASSETS.magicWand} alt="" />
-            <span>开始免费形象预分析<small>先看方向，再决定是否生成</small></span>
+            <span>开始形象分析</span>
           </button>
           <button className="home-cta secondary" onClick={() => document.querySelector(".preview-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
             <img src={HOME_ASSETS.reportCard} alt="" />
-            <span>查看报告样例<small>了解完整报告包含什么</small></span>
+            <span>查看报告样例</span>
           </button>
         </div>
       </section>
@@ -1224,11 +1231,11 @@ function ReportPreview({ type, locked }: { type: ReportType; locked?: boolean })
 
 function HomeReportPreview({ type, locked }: { type: ReportType; locked?: boolean }) {
   const iconMap: Record<ReportTypeId, string> = {
-    comprehensive: HOME_ASSETS.reportCard,
-    hair: HOME_ASSETS.heroPersonAlt,
-    makeup: HOME_ASSETS.palette,
-    outfit: HOME_ASSETS.hanger,
-    look: HOME_ASSETS.heroPerson,
+    comprehensive: CHOOSE_REPORT_ASSETS.comprehensivePreview,
+    hair: CHOOSE_REPORT_ASSETS.hair,
+    makeup: CHOOSE_REPORT_ASSETS.makeup,
+    outfit: CHOOSE_REPORT_ASSETS.outfit,
+    look: CHOOSE_REPORT_ASSETS.look,
   };
   const captionMap: Record<ReportTypeId, string> = {
     comprehensive: "形象定位 · 风格建议",
@@ -1412,7 +1419,7 @@ function SelectPage({ rights, chooseReport, nav }: { rights: Rights; chooseRepor
     <main className="choose-report-page">
       <div className="choose-bg-star choose-bg-star-a">✦</div>
       <div className="choose-bg-star choose-bg-star-b">✦</div>
-      <PageHeader title="选择报告类型" description="免费预分析无需购买，完整报告会在生成前再支付。" onBack={() => nav("home")} backLabel="返回首页" />
+      <PageHeader title="选择报告类型" onBack={() => nav("home")} backLabel="返回首页" />
 
       <section className="choose-quota choose-quota-inline" aria-label="剩余报告次数">
         <span><Sparkles />免费预分析 <b>可用</b></span>
@@ -1915,8 +1922,6 @@ function PreAnalysisPage({
   products,
   nav,
   onAnalyze,
-  onGenerate,
-  onOpenPaywall,
 }: {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
@@ -1924,8 +1929,6 @@ function PreAnalysisPage({
   products: Product[];
   nav: (r: Route) => void;
   onAnalyze: () => void;
-  onGenerate: () => void;
-  onOpenPaywall: (reason: string) => void;
 }) {
   useEffect(() => {
     if (!state.preAnalysis || state.preAnalysis.reportType !== type.id) onAnalyze();
@@ -1983,7 +1986,7 @@ function PreAnalysisPage({
 
       <section className="preanalysis-pay-card">
         <div>
-          <span>下一步</span>
+          <span className="preanalysis-pay-card__eyebrow">下一步</span>
           <h2>{hasRight ? "使用已购权益生成完整报告" : `生成完整报告${recommendedProduct ? ` ¥${recommendedProduct.price}` : ""}`}</h2>
           <p>{hasRight ? "将消耗 1 次对应权益，生成失败不会扣减。" : "完成微信/支付宝支付后，才会调用正式生图模型。"}</p>
         </div>
@@ -1998,8 +2001,8 @@ function PreAnalysisPage({
             <span>{PRIVACY_TEXT}</span>
           </span>
         </button>
-        <button className="confirm-primary-btn" onClick={hasRight ? onGenerate : () => onOpenPaywall("生成完整报告前需要先完成支付")}>
-          <span>{hasRight ? "开始生成完整报告" : "选择报告套餐"}</span>
+        <button className="confirm-primary-btn" onClick={() => nav("confirm")}>
+          <span className="confirm-primary-btn__label">进入确认生成</span>
           <Sparkles size={18} />
         </button>
         <button className="confirm-secondary-btn" onClick={() => nav("upload")}>重新上传照片</button>
@@ -2012,10 +2015,12 @@ function PaywallSheet({
   paying,
   onClose,
   onCheckout,
+  reason,
 }: {
   paying: PayingState;
   onClose: () => void;
   onCheckout: (item: PaywallPackage, channel: PayChannel) => void;
+  reason?: string;
 }) {
   return (
     <div className="paywall-backdrop" onClick={onClose}>
@@ -2028,7 +2033,7 @@ function PaywallSheet({
 
         <header className="paywall-header">
           <h2>选择报告套餐</h2>
-          <p>生成完整报告前需先完成支付</p>
+          <p>{reason || "生成完整报告前需先完成支付"}</p>
         </header>
 
         <div className="paywall-products">
@@ -2116,7 +2121,21 @@ function XMark() {
   );
 }
 
-function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; type: ReportType; nav: (r: Route) => void; startGenerate: () => void }) {
+function ConfirmPage({
+  state,
+  setState,
+  type,
+  nav,
+  startGenerate,
+  onOpenPaywall,
+}: {
+  state: AppState;
+  setState: React.Dispatch<React.SetStateAction<AppState>>;
+  type: ReportType;
+  nav: (r: Route) => void;
+  startGenerate: () => void;
+  onOpenPaywall: (reason: string) => void;
+}) {
   const selectedPreferenceLabels = [
     ...state.preferences.stylePreferences.map((item) => ({ key: `style-${item}`, label: preferenceLabel("style", item) })),
     ...state.preferences.targetScenes.map((item) => ({ key: `scene-${item}`, label: preferenceLabel("scene", item) })),
@@ -2124,7 +2143,8 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
   ];
   const isInvalidPhoto = state.uploadStatus === "error" || state.photoCheckResult === "failed";
   const hasPhoto = Boolean(state.photoUrl);
-  const canGenerate = hasPhoto && !isInvalidPhoto && state.privacyAccepted && state.rights[type.rightKey] > 0 && !state.isGenerating;
+  const hasRight = state.rights[type.rightKey] > 0;
+  const canProceed = hasPhoto && !isInvalidPhoto && state.privacyAccepted && !state.isGenerating;
   return (
     <main className="page confirm-generate-page">
       <img className="confirm-bg confirm-bg-left" src={CONFIRM_GENERATE_ASSETS.decoSmall} alt="" aria-hidden="true" />
@@ -2191,8 +2211,19 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
       </button>
 
       <div className="confirm-bottom-actions confirm-fade-in" style={{ animationDelay: "120ms" }}>
-        <button className="confirm-primary-btn" disabled={!canGenerate} onClick={startGenerate}>
-          <span>{state.isGenerating ? "生成中..." : "开始生成报告"}</span>
+        <button
+          className="confirm-primary-btn"
+          disabled={!canProceed}
+          onClick={() => {
+            if (!canProceed) return;
+            if (!hasRight) {
+              onOpenPaywall("生成完整报告前需要先完成支付");
+              return;
+            }
+            startGenerate();
+          }}
+        >
+          <span className="confirm-primary-btn__label">{state.isGenerating ? "生成中..." : hasRight ? "开始生成报告" : "选择报告套餐"}</span>
           <Sparkles size={18} />
         </button>
         <button className="confirm-secondary-btn" onClick={() => nav("preferences")}>返回修改</button>
