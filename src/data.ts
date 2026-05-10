@@ -1,4 +1,4 @@
-import type { AdminState, Persona, PreferenceSection, Product, ReportType } from "./types";
+import type { AdminState, PaywallPackage, Persona, PreferenceSection, Product, ReportType } from "./types";
 
 export const ASSETS = {
   logo: "/assets/website-Logo.png",
@@ -94,6 +94,47 @@ export const DEFAULT_PRODUCTS: Product[] = [
     purchaseLink: "",
     enabled: true,
     sort: 3,
+  },
+];
+
+export const PAYWALL_PACKAGES: PaywallPackage[] = [
+  {
+    id: "single_topic",
+    title: "单次专题报告",
+    description: "适合单次体验",
+    price: 1.9,
+    badge: "本次推荐",
+    icon: "document",
+    productIds: {
+      wechat: "single_topic_wechat",
+      alipay: "single_topic_alipay",
+    },
+  },
+  {
+    id: "three_topic",
+    title: "3次专题报告",
+    description: "适合多次专题查看",
+    price: 4.9,
+    originalPrice: 5.7,
+    badge: "更划算",
+    icon: "card",
+    productIds: {
+      wechat: "three_topic_wechat",
+      alipay: "three_topic_alipay",
+    },
+  },
+  {
+    id: "full_case",
+    title: "全案探索卡",
+    description: "3次专题报告，1次综合报告",
+    price: 9.9,
+    originalPrice: 15.9,
+    badge: "最划算",
+    icon: "crown",
+    productIds: {
+      wechat: "full_case_wechat",
+      alipay: "full_case_alipay",
+    },
   },
 ];
 

@@ -27,6 +27,7 @@ interface Env {
   OPENAI_IMAGE_ENDPOINT: string;
   OPENAI_IMAGE_MODEL: string;
   OPENAI_API_KEY: string;
+  OPENAI_PREANALYSIS_MODEL?: string;
   ADMIN_PASSWORD_SECRET: string;
   COUPON_VALID_DAYS: string;
   STRIPE_SECRET_KEY?: string;
@@ -38,6 +39,7 @@ interface Env {
 }
 
 type Json = Record<string, unknown>;
+type PayChannel = "wechat" | "alipay";
 type ProductRow = {
   id: string;
   name: string;
@@ -51,6 +53,26 @@ type ProductRow = {
   enabled: number;
   sort_order: number;
   updated_at: string;
+};
+const PRODUCT_ALIAS_MAP: Record<string, string> = {
+  single_topic_wechat: "single",
+  single_topic_alipay: "single",
+  three_topic_wechat: "triple",
+  three_topic_alipay: "triple",
+  full_case_wechat: "full",
+  full_case_alipay: "full",
+};
+const PRODUCT_PACKAGE_MAP: Record<string, string> = {
+  single_topic_wechat: "single_topic",
+  single_topic_alipay: "single_topic",
+  three_topic_wechat: "three_topic",
+  three_topic_alipay: "three_topic",
+  full_case_wechat: "full_case",
+  full_case_alipay: "full_case",
+};
+const PAYMENT_METHODS_BY_CHANNEL: Record<PayChannel, string[]> = {
+  wechat: ["wechat_pay"],
+  alipay: ["alipay"],
 };
 type OrderRow = {
   id: string;
@@ -82,6 +104,11 @@ type ReportRow = {
   xhs_summary_image_url?: string | null;
   status?: string | null;
   error?: string | null;
+};
+type EntitlementRow = {
+  id: string;
+  topic_remaining: number;
+  comprehensive_remaining: number;
 };
 
 const json = (data: unknown, init: ResponseInit = {}) =>
@@ -128,7 +155,7 @@ async function body<T = Json>(request: Request): Promise<T> {
 
 function checkoutReturnUrl(env: Env, key: "success" | "cancel") {
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, "");
-  if (key === "success") return env.STRIPE_SUCCESS_URL || `${base}/#/payment/success?session_id={CHECKOUT_SESSION_ID}`;
+  if (key === "success") return env.STRIPE_SUCCESS_URL || `${base}/#/success?session_id={CHECKOUT_SESSION_ID}`;
   return env.STRIPE_CANCEL_URL || `${base}/#/purchase`;
 }
 
@@ -240,6 +267,11 @@ async function fulfillOrder(env: Env, orderId: string, stripePaymentIntentId = "
   await env.DB.prepare("UPDATE orders SET status = 'fulfilled', coupon_code = ?, stripe_payment_intent_id = COALESCE(NULLIF(?, ''), stripe_payment_intent_id), paid_at = COALESCE(paid_at, ?), fulfilled_at = ?, updated_at = ? WHERE id = ? AND fulfilled_at IS NULL")
     .bind(code, stripePaymentIntentId, paidAt, now(), now(), order.id)
     .run();
+  await env.DB.prepare(`INSERT INTO entitlements
+    (id, client_id, order_id, product_id, topic_remaining, comprehensive_remaining, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`)
+    .bind(randomId("ent"), order.client_id, order.id, order.product_id, order.rights_topic, order.rights_comprehensive, now(), now())
+    .run();
 
   return {
     ...order,
@@ -250,6 +282,24 @@ async function fulfillOrder(env: Env, orderId: string, stripePaymentIntentId = "
     fulfilled_at: now(),
     updated_at: now(),
   };
+}
+
+async function availableEntitlement(env: Env, clientId: string, rightKey: string) {
+  if (!clientId) return null;
+  const column = rightKey === "comprehensive" ? "comprehensive_remaining" : "topic_remaining";
+  return env.DB.prepare(`SELECT id, topic_remaining, comprehensive_remaining FROM entitlements WHERE client_id = ? AND status = 'active' AND ${column} > 0 ORDER BY created_at ASC LIMIT 1`)
+    .bind(clientId)
+    .first<EntitlementRow>();
+}
+
+async function consumeEntitlement(env: Env, entitlementId: string, rightKey: string) {
+  const column = rightKey === "comprehensive" ? "comprehensive_remaining" : "topic_remaining";
+  await env.DB.prepare(`UPDATE entitlements SET ${column} = MAX(0, ${column} - 1), updated_at = ? WHERE id = ? AND ${column} > 0`)
+    .bind(now(), entitlementId)
+    .run();
+  await env.DB.prepare("UPDATE entitlements SET status = 'exhausted', updated_at = ? WHERE id = ? AND topic_remaining <= 0 AND comprehensive_remaining <= 0")
+    .bind(now(), entitlementId)
+    .run();
 }
 
 function hex(buffer: ArrayBuffer) {
@@ -544,6 +594,60 @@ async function handleApi(request: Request, env: Env, url: URL) {
     });
   }
 
+  if (request.method === "POST" && url.pathname === "/api/preanalysis/create") {
+    const input = await body(request);
+    const reportType = String(input.report_type || "hair");
+    const labels: Record<string, string> = {
+      comprehensive: "综合形象报告",
+      hair: "发型发色专题",
+      makeup: "色彩面部专题",
+      outfit: "穿搭配饰专题",
+      look: "场景 Look 专题",
+    };
+    const requirements: Record<string, string> = {
+      comprehensive: "建议使用正脸半身照，看清脸部、发型、肩颈和上半身轮廓。",
+      hair: "建议使用清晰正脸照，头部完整、发际线和发量可见。",
+      makeup: "建议使用自然光正脸照，肤色不偏色、五官清楚。",
+      outfit: "建议使用半身以上照片，能看到上半身穿搭和肩颈比例。",
+      look: "建议使用接近全身照，能看到整体比例、服装和姿态。",
+    };
+    const style = String(input.style_preference || "系统推荐");
+    const scene = String(input.scene_preference || "日常干净");
+    const change = String(input.change_level || "轻微优化");
+    const photoCheck = String(input.photo_check_result || "available");
+    const fit = photoCheck === "failed" ? "poor" : photoCheck === "warning" ? "warning" : "good";
+    const recommendedProductId = reportType === "comprehensive" ? "full" : "single";
+    return json({
+      id: randomId("pa"),
+      reportType,
+      title: `${labels[reportType] || labels.hair}预分析`,
+      summary: `当前偏好是「${style} / ${scene} / ${change}」。这一步只生成文字方向，支付后才会调用正式生图模型生成完整报告。`,
+      keywords: reportType === "comprehensive" ? ["完整定位", "多维建议", "可保存长图"] : ["方向明确", "低门槛试用", "可升级多次"],
+      photoFit: fit,
+      photoAdvice: requirements[reportType] || requirements.hair,
+      recommendedProductId,
+      sections: [
+        { title: "推荐生成", text: reportType === "comprehensive" ? "适合直接购买全案探索卡，先得到完整形象定位。" : `适合先生成${labels[reportType] || labels.hair}，看一个方向是否准确。` },
+        { title: "照片要求", text: requirements[reportType] || requirements.hair },
+        { title: "成本控制", text: "预分析不生成图片；只有支付成功并确认生成后，才会调用正式生图接口。" },
+      ],
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/me/entitlements") {
+    const clientId = url.searchParams.get("client_id") || "";
+    if (!clientId) return json({ error: "client_id_required" }, { status: 400 });
+    const rows = await env.DB.prepare("SELECT * FROM entitlements WHERE client_id = ? ORDER BY created_at DESC").bind(clientId).all();
+    return json({ entitlements: rows.results });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/me/reports") {
+    const clientId = url.searchParams.get("client_id") || "";
+    if (!clientId) return json({ error: "client_id_required" }, { status: 400 });
+    const rows = await env.DB.prepare("SELECT id, report_type, style_persona, status, error, created_at, completed_at FROM reports WHERE client_id = ? ORDER BY created_at DESC LIMIT 50").bind(clientId).all();
+    return json({ reports: rows.results });
+  }
+
   const reportAssetMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/(report|cover|summary)\.(png|svg)$/);
   if (request.method === "GET" && reportAssetMatch) {
     const [, reportId, kind] = reportAssetMatch;
@@ -560,20 +664,44 @@ async function handleApi(request: Request, env: Env, url: URL) {
 
   if (request.method === "POST" && url.pathname === "/api/orders/checkout") {
     const input = await body(request);
-    const productId = String(input.product_id || "");
+    const packageId = String(input.package_id || input.packageId || "");
+    const productId = String(input.product_id || input.productId || "");
+    const channel = String(input.channel || "") as PayChannel | "";
     const clientId = String(input.client_id || "");
-    if (!productId) return json({ error: "invalid_product_id" }, { status: 400 });
+    if (!packageId) return json({ error: "package_id_required", message: "套餐信息缺失，请重新打开支付窗口" }, { status: 400 });
+    if (!productId) return json({ error: "product_id_required", message: "商品信息缺失，请稍后重试" }, { status: 400 });
+    if (channel !== "wechat" && channel !== "alipay") {
+      return json({ error: "PAYMENT_CHANNEL_UNAVAILABLE", message: "当前支付方式暂不可用，请选择其他支付方式" }, { status: 400 });
+    }
     if (!clientId) return json({ error: "client_id_required" }, { status: 400 });
     if (!stripePaymentsEnabled(env)) {
       return json({
         error: "stripe_payments_not_enabled",
-        message: "Stripe 支付暂未启用，等支付方式审批完成后再切换上线。",
+        message: "支付暂未开放，请稍后再试。",
         stripe_enabled: false,
       }, { status: 503 });
     }
 
-    const product = await env.DB.prepare("SELECT * FROM products WHERE id = ? AND enabled = 1").bind(productId).first<ProductRow>();
-    if (!product) return json({ error: "product_not_found" }, { status: 404 });
+    const expectedPackageId = PRODUCT_PACKAGE_MAP[productId];
+    if (expectedPackageId && expectedPackageId !== packageId) {
+      return json({
+        error: "PRODUCT_PACKAGE_MISMATCH",
+        message: "当前套餐暂不可购买，请稍后重试",
+        package_id: packageId,
+        product_id: productId,
+      }, { status: 400 });
+    }
+
+    const resolvedProductId = PRODUCT_ALIAS_MAP[productId] || productId;
+    const product = await env.DB.prepare("SELECT * FROM products WHERE id = ? AND enabled = 1").bind(resolvedProductId).first<ProductRow>();
+    if (!product) {
+      return json({
+        error: "PRODUCT_NOT_FOUND",
+        message: "当前套餐暂不可购买，请稍后重试",
+        package_id: packageId,
+        product_id: productId,
+      }, { status: 404 });
+    }
 
     const amount = unitAmount(product.price);
     const orderId = randomId("ord");
@@ -590,6 +718,9 @@ async function handleApi(request: Request, env: Env, url: URL) {
         topic: product.topic_rights,
         comprehensive: product.comprehensive_rights,
       },
+      packageId,
+      channel,
+      productId,
     };
     const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
 
@@ -604,9 +735,12 @@ async function handleApi(request: Request, env: Env, url: URL) {
     params.set("success_url", checkoutReturnUrl(env, "success"));
     params.set("cancel_url", checkoutReturnUrl(env, "cancel"));
     params.set("client_reference_id", orderId);
-    params.set("payment_method_options[wechat_pay][client]", "web");
-    params.append("payment_method_types[0]", "wechat_pay");
-    params.append("payment_method_types[1]", "alipay");
+    if (channel === "wechat") {
+      params.set("payment_method_options[wechat_pay][client]", "web");
+    }
+    PAYMENT_METHODS_BY_CHANNEL[channel].forEach((method, index) => {
+      params.append(`payment_method_types[${index}]`, method);
+    });
     params.set("line_items[0][price_data][currency]", currency);
     params.set("line_items[0][price_data][product_data][name]", product.name);
     params.set("line_items[0][price_data][unit_amount]", String(amount));
@@ -614,6 +748,8 @@ async function handleApi(request: Request, env: Env, url: URL) {
     params.set("metadata[order_id]", orderId);
     params.set("metadata[order_no]", orderNoValue);
     params.set("metadata[product_id]", product.id);
+    params.set("metadata[package_id]", packageId);
+    params.set("metadata[channel]", channel);
     params.set("metadata[client_id]", clientId);
     params.set("metadata[platform]", "web");
 
@@ -629,10 +765,14 @@ async function handleApi(request: Request, env: Env, url: URL) {
       order_id: orderId,
       order_no: orderNoValue,
       checkout_url: checkoutUrl,
+      pay_url: checkoutUrl,
       stripe_checkout_session_id: checkoutSessionId,
       currency,
       amount,
-      payment_methods: ["wechat_pay", "alipay"],
+      channel,
+      package_id: packageId,
+      product_id: product.id,
+      payment_methods: PAYMENT_METHODS_BY_CHANNEL[channel],
     });
   }
 
@@ -783,6 +923,14 @@ async function handleApi(request: Request, env: Env, url: URL) {
     const reportId = randomId("rpt");
     const prompt = promptFor(input);
     const rightKey = String(input.right_key || "topic");
+    const clientId = String(input.client_id || "");
+    const entitlement = await availableEntitlement(env, clientId, rightKey);
+    if (!entitlement) {
+      return json({
+        error: "entitlement_required",
+        message: rightKey === "comprehensive" ? "请先购买全案探索卡，再生成综合报告。" : "请先完成支付，再生成完整专题报告。",
+      }, { status: 402 });
+    }
     let reportImageKey = "";
     let coverImageKey = "";
     let summaryImageKey = "";
@@ -815,6 +963,9 @@ async function handleApi(request: Request, env: Env, url: URL) {
       status = "failed";
       error = err instanceof Error ? err.message : "image generation failed";
     }
+    if (status === "completed") {
+      await consumeEntitlement(env, entitlement.id, rightKey);
+    }
     summaryImageKey = coverImageKey || reportImageKey;
     const reportImageUrl = reportAssetPath(reportId, "report");
     const coverImageUrl = reportAssetPath(reportId, "cover");
@@ -824,7 +975,7 @@ async function handleApi(request: Request, env: Env, url: URL) {
       await db.prepare(`INSERT INTO reports
         (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_key, xhs_cover_image_key, xhs_summary_image_key, report_image_url, xhs_cover_image_url, xhs_summary_image_url, created_at, completed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .bind(reportId, String(input.client_id || ""), String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageKey, coverImageKey, summaryImageKey, reportImageUrl, coverImageUrl, summaryImageUrl, now(), status === "completed" ? now() : null)
+        .bind(reportId, clientId, String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageKey, coverImageKey, summaryImageKey, reportImageUrl, coverImageUrl, summaryImageUrl, now(), status === "completed" ? now() : null)
         .run();
     }
     return json({ report_id: reportId, status, error, prompt, subject_gender: subjectGender, report_image_url: reportImageUrl, xhs_cover_image_url: coverImageUrl, xhs_summary_image_url: summaryImageUrl });

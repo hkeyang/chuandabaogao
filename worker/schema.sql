@@ -66,6 +66,18 @@ CREATE TABLE IF NOT EXISTS payment_events (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS entitlements (
+  id TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL,
+  order_id TEXT,
+  product_id TEXT NOT NULL REFERENCES products(id),
+  topic_remaining INTEGER NOT NULL DEFAULT 0,
+  comprehensive_remaining INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL CHECK (status IN ('active', 'exhausted', 'disabled')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY,
   client_id TEXT NOT NULL,
@@ -113,3 +125,5 @@ CREATE INDEX IF NOT EXISTS idx_share_events_report ON share_events(report_id);
 CREATE INDEX IF NOT EXISTS idx_orders_client ON orders(client_id);
 CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(stripe_checkout_session_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_entitlements_client ON entitlements(client_id);
+CREATE INDEX IF NOT EXISTS idx_entitlements_order ON entitlements(order_id);

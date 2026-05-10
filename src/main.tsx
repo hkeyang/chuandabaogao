@@ -29,11 +29,56 @@ import {
   WandSparkles,
 } from "lucide-react";
 import "./styles.css";
-import { ASSETS, DEFAULT_ADMIN, DEFAULT_PRODUCTS, PERSONAS, REPORT_TYPES, PREFERENCE_ASSETS, preferenceSections } from "./data";
-import type { AdminState, AdminUser, AuditLog, Coupon, PersonaId, PreferenceState, Product, ProductId, ReportType, ReportTypeId, Rights, UserReport } from "./types";
+import { ASSETS, DEFAULT_ADMIN, DEFAULT_PRODUCTS, PAYWALL_PACKAGES, PERSONAS, REPORT_TYPES, PREFERENCE_ASSETS, preferenceSections } from "./data";
+import type { AdminState, AdminUser, AuditLog, Coupon, PayChannel, PaywallPackage, PersonaId, PreferenceState, Product, ProductId, ReportType, ReportTypeId, Rights, UserReport } from "./types";
 
-type Route = "home" | "purchase" | "success" | "select" | "upload" | "preferences" | "confirm" | "progress" | "result" | "admin";
+type Route = "home" | "purchase" | "success" | "select" | "upload" | "preferences" | "preanalysis" | "confirm" | "progress" | "result" | "admin";
 type Toast = { id: number; text: string };
+type PaywallState = { open: boolean; reason?: string };
+type PayingState = { packageId: string; channel: PayChannel } | null;
+type PreAnalysis = {
+  id: string;
+  reportType: ReportTypeId;
+  title: string;
+  summary: string;
+  keywords: string[];
+  photoFit: "good" | "warning" | "poor";
+  photoAdvice: string;
+  recommendedProductId: ProductId;
+  sections: Array<{ title: string; text: string }>;
+};
+
+const PAYMENT_ERROR_MAP: Record<string, string> = {
+  product_not_found: "当前套餐暂不可购买，请稍后重试",
+  PRODUCT_NOT_FOUND: "当前套餐暂不可购买，请稍后重试",
+  product_config_missing: "当前套餐暂不可购买，请稍后重试",
+  PRODUCT_CONFIG_MISSING: "当前套餐暂不可购买，请稍后重试",
+  PRODUCT_PACKAGE_MISMATCH: "当前套餐暂不可购买，请稍后重试",
+  payment_channel_unavailable: "当前支付方式暂不可用，请选择其他支付方式",
+  PAYMENT_CHANNEL_UNAVAILABLE: "当前支付方式暂不可用，请选择其他支付方式",
+  stripe_payments_not_enabled: "支付暂未开放，请稍后再试",
+  order_create_failed: "订单创建失败，请稍后重试",
+  PAY_URL_EMPTY: "支付链接获取失败，请稍后再试",
+  PAY_URL_MISSING: "支付链接获取失败，请稍后再试",
+};
+
+function getPaymentErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    const mapped = PAYMENT_ERROR_MAP[error.message.trim()];
+    if (mapped) return mapped;
+    if (error.message && !/[A-Z_]{4,}/.test(error.message)) return error.message;
+  }
+  if (typeof error === "string") {
+    return PAYMENT_ERROR_MAP[error] || error;
+  }
+  return "支付暂时不可用，请稍后再试";
+}
+
+function isPaying(paying: PayingState, packageId: string, channel: PayChannel) {
+  return paying?.packageId === packageId && paying?.channel === channel;
+}
+
+const PRIVACY_TEXT = "我知悉并同意本人照片用于生成形象分析报告。我们将严格保护您的隐私，不会用于其他用途。";
 
 function SafeAssetImage({ onError, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
   return (
@@ -268,6 +313,7 @@ type PhotoCheckResult = "available" | "warning" | "failed";
 
 interface AppState {
   route: Route;
+  clientId: string;
   product?: Product;
   rights: Rights;
   reportType: ReportTypeId;
@@ -286,9 +332,13 @@ interface AppState {
   uploadErrorMessage?: string;
   isGenerating: boolean;
   generationError?: string;
+  preAnalysis?: PreAnalysis;
+  isPreAnalyzing: boolean;
+  preAnalysisError?: string;
 }
 
 const LS_KEY = "aisea-react-state-v1";
+const CLIENT_ID_KEY = "aisea-client-id-v1";
 const ADMIN_PASSWORD = "AISea@2026";
 const couponAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const DEMO_COUPON_PRODUCTS: Record<string, ProductId> = {
@@ -349,12 +399,21 @@ function preferenceLabel(sectionId: string, optionId: string) {
   return section?.options.find((item) => item.id === optionId)?.label || optionId;
 }
 
+function getClientId() {
+  const saved = localStorage.getItem(CLIENT_ID_KEY);
+  if (saved) return saved;
+  const id = `web_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  localStorage.setItem(CLIENT_ID_KEY, id);
+  return id;
+}
+
 function loadState(): AppState {
   const hashRoute = (window.location.hash.replace(/^#\/?/, "") || "home") as Route;
   const params = new URLSearchParams(window.location.search);
-  const allowedRoutes: Route[] = ["home", "purchase", "success", "select", "upload", "preferences", "confirm", "progress", "result", "admin"];
+  const allowedRoutes: Route[] = ["home", "purchase", "success", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
   const fallback: AppState = {
     route: allowedRoutes.includes(hashRoute) ? hashRoute : "home",
+    clientId: getClientId(),
     rights: { topic: 0, comprehensive: 0 },
     reportType: "comprehensive",
     photoUrl: ASSETS.heroAlt,
@@ -372,6 +431,9 @@ function loadState(): AppState {
     uploadErrorMessage: undefined,
     isGenerating: false,
     generationError: undefined,
+    preAnalysis: undefined,
+    isPreAnalyzing: false,
+    preAnalysisError: undefined,
   };
   if (params.get("demo") === "full") {
     const product = DEFAULT_PRODUCTS.find((item) => item.id === "full");
@@ -413,9 +475,13 @@ function loadState(): AppState {
       uploadStatus: saved.uploadStatus || fallback.uploadStatus,
       photoCheckResult: saved.photoCheckResult,
       uploadErrorMessage: saved.uploadErrorMessage,
-      isGenerating: Boolean(saved.isGenerating),
+      isGenerating: fallback.route === "progress" ? Boolean(saved.isGenerating) : false,
       generationError: typeof saved.generationError === "string" ? saved.generationError : undefined,
       photoDataUrl: typeof saved.photoDataUrl === "string" ? saved.photoDataUrl : undefined,
+      clientId: typeof saved.clientId === "string" ? saved.clientId : fallback.clientId,
+      preAnalysis: saved.preAnalysis,
+      isPreAnalyzing: Boolean(saved.isPreAnalyzing),
+      preAnalysisError: typeof saved.preAnalysisError === "string" ? saved.preAnalysisError : undefined,
     } : fallback;
   } catch {
     return fallback;
@@ -677,9 +743,82 @@ function photoCheckCopy(result?: PhotoCheckResult) {
   return { title: "照片可用", desc: "照片清晰，可继续生成", tone: "available" as const };
 }
 
+function reportPhotoRequirement(typeId: ReportTypeId) {
+  const map: Record<ReportTypeId, { title: string; desc: string; tips: string[]; strictness: "face" | "upper" | "full" }> = {
+    comprehensive: {
+      title: "综合报告建议正脸半身照",
+      desc: "看清脸部、发型、肩颈和上半身轮廓，综合判断会更稳。",
+      tips: ["正脸清晰", "肩颈可见", "光线均匀"],
+      strictness: "upper",
+    },
+    hair: {
+      title: "发型发色需要清晰正脸",
+      desc: "头部完整、发际线和发量可见，刘海与脸型判断会更准确。",
+      tips: ["头发完整", "五官清楚", "少滤镜"],
+      strictness: "face",
+    },
+    makeup: {
+      title: "色彩面部需要均匀光线",
+      desc: "正脸、自然光、肤色不偏色，适合判断气色和面部清爽度。",
+      tips: ["正脸自然光", "肤色不偏", "无遮挡"],
+      strictness: "face",
+    },
+    outfit: {
+      title: "穿搭配饰建议半身以上",
+      desc: "至少看到上半身和肩颈比例；如果能看到腰线，版型建议会更具体。",
+      tips: ["半身以上", "衣服可见", "姿态自然"],
+      strictness: "upper",
+    },
+    look: {
+      title: "场景 Look 建议接近全身照",
+      desc: "最好看到从头到脚或大半身比例，系统才能给出更完整的场景搭配。",
+      tips: ["接近全身", "服装完整", "背景干净"],
+      strictness: "full",
+    },
+  };
+  return map[typeId];
+}
+
+function localPreAnalysis(input: {
+  reportType: ReportType;
+  preferences: PreferenceState;
+  photoCheckResult?: PhotoCheckResult;
+  productId?: ProductId;
+}): PreAnalysis {
+  const { reportType, preferences, photoCheckResult, productId } = input;
+  const personaId = pickPersona(preferences.stylePreferences, preferences.targetScenes);
+  const persona = PERSONAS[personaId];
+  const requirement = reportPhotoRequirement(reportType.id);
+  const photoFit = photoCheckResult === "failed" ? "poor" : photoCheckResult === "warning" ? "warning" : "good";
+  const product = productId || (reportType.id === "comprehensive" ? "full" : "single");
+  const style = preferenceLabel("style", preferences.stylePreferences[0] || "auto");
+  const scene = preferenceLabel("scene", preferences.targetScenes[0] || "daily");
+  const change = preferenceLabel("range", preferences.changeIntensity || "light");
+  return {
+    id: `pa_${Date.now()}`,
+    reportType: reportType.id,
+    title: `${reportType.name}预分析`,
+    summary: `这张照片适合先走「${persona.title}」方向，当前偏好是${style}、${scene}、${change}。完整报告会把建议整理成一张可保存的高清长图。`,
+    keywords: [...persona.keywords.slice(0, 3), reportType.tags[0]].filter(Boolean),
+    photoFit,
+    photoAdvice: photoFit === "good"
+      ? `${requirement.title}，当前照片基础可用。`
+      : `${requirement.title}，建议按「${requirement.tips.join(" / ")}」重新拍一张，完整报告会更准。`,
+    recommendedProductId: product,
+    sections: [
+      { title: "优先方向", text: reportType.id === "comprehensive" ? "先看完整形象定位，再拆开发型、色彩、穿搭和场景。" : `先生成${reportType.name}，把一个方向看清楚。` },
+      { title: "照片匹配", text: requirement.desc },
+      { title: "付费后生成", text: "预分析不消耗生图成本；点击生成完整报告并完成支付后，才会调用正式生图模型。" },
+    ],
+  };
+}
+
 function App() {
   const [state, setState] = useState<AppState>(loadState);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [paywall, setPaywall] = useState<PaywallState>({ open: false });
+  const [paying, setPaying] = useState<PayingState>(null);
+  const payingLockRef = useRef<PayingState>(null);
   const generationSeqRef = useRef(0);
 
   useEffect(() => {
@@ -695,7 +834,7 @@ function App() {
   useEffect(() => {
     const onHash = () => {
       const route = (window.location.hash.replace(/^#\/?/, "") || "home") as Route;
-      const allowedRoutes: Route[] = ["home", "purchase", "success", "select", "upload", "preferences", "confirm", "progress", "result", "admin"];
+      const allowedRoutes: Route[] = ["home", "purchase", "success", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
       if (allowedRoutes.includes(route)) setState((s) => ({ ...s, route }));
     };
     window.addEventListener("hashchange", onHash);
@@ -744,22 +883,92 @@ function App() {
   }
 
   function chooseReport(id: ReportTypeId) {
-    const type = REPORT_TYPES.find((item) => item.id === id)!;
-    if (state.rights[type.rightKey] <= 0) {
-      showToast(type.rightKey === "comprehensive" ? "当前没有综合形象报告次数，请购买全案探索卡" : "专题次数不足，请购买新券码");
-      if (type.rightKey !== "comprehensive") nav("purchase");
-      return;
-    }
-    setState((s) => ({ ...s, reportType: id, route: "upload" }));
+    setState((s) => ({ ...s, reportType: id, route: "upload", isGenerating: false, generationError: undefined, preAnalysis: undefined, preAnalysisError: undefined }));
   }
 
-  function startGenerate() {
-    if (state.isGenerating) return showToast("正在生成中，请勿重复点击");
-    if (!state.photoUrl) return showToast("请先上传照片");
-    if (!state.privacyAccepted) return showToast("请先确认照片授权");
-    if (state.rights[reportType.rightKey] <= 0) return showToast("当前权益不足，请购买新券码");
+function startGenerate() {
+  if (state.isGenerating) return showToast("正在生成中，请勿重复点击");
+  if (!state.photoUrl) return showToast("请先上传照片");
+  if (!state.privacyAccepted) return showToast("请先勾选本人照片确认");
+  if (state.rights[reportType.rightKey] <= 0) {
+    setPaywall({ open: true, reason: reportType.rightKey === "comprehensive" ? "综合报告需要全案探索卡权益" : "生成完整专题前需要先完成支付" });
+    return;
+  }
     generationSeqRef.current += 1;
     setState((s) => ({ ...s, progress: 8, route: "progress", isGenerating: true, generationError: undefined }));
+  }
+
+  async function createPreAnalysis() {
+    const type = REPORT_TYPES.find((item) => item.id === state.reportType) || REPORT_TYPES[0];
+    setState((s) => ({ ...s, isPreAnalyzing: true, preAnalysisError: undefined }));
+    try {
+      const response = await fetch("/api/preanalysis/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          client_id: state.clientId,
+          report_type: type.id,
+          report_name: type.name,
+          style_preference: state.preferences.stylePreferences.join(" / "),
+          scene_preference: state.preferences.targetScenes.join(" / "),
+          change_level: state.preferences.changeIntensity,
+          photo_check_result: state.photoCheckResult,
+          photo_name: state.photoName,
+        }),
+      });
+      const data = await response.json().catch(() => ({} as Partial<PreAnalysis> & { error?: string; message?: string }));
+      if (!response.ok) throw new Error(String(data.message || data.error || "预分析暂时不可用"));
+      const next: PreAnalysis = {
+        ...localPreAnalysis({ reportType: type, preferences: state.preferences, photoCheckResult: state.photoCheckResult }),
+        ...data,
+        reportType: type.id,
+      };
+      setState((s) => ({ ...s, preAnalysis: next, isPreAnalyzing: false, preAnalysisError: undefined }));
+    } catch (error) {
+      const fallback = localPreAnalysis({ reportType: type, preferences: state.preferences, photoCheckResult: state.photoCheckResult });
+      setState((s) => ({
+        ...s,
+        preAnalysis: fallback,
+        isPreAnalyzing: false,
+        preAnalysisError: error instanceof Error ? error.message : "已使用本地预分析模板",
+      }));
+    }
+  }
+
+  async function startCheckout(item: PaywallPackage, channel: PayChannel) {
+    if (payingLockRef.current) {
+      showToast("正在跳转支付，请稍后");
+      return;
+    }
+    const productId = item.productIds[channel];
+    if (!productId) return showToast("当前套餐暂不可购买，请稍后重试");
+    try {
+      payingLockRef.current = { packageId: item.id, channel };
+      setPaying({ packageId: item.id, channel });
+      const response = await fetch("/api/orders/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          package_id: item.id,
+          product_id: productId,
+          channel,
+          client_id: state.clientId,
+          report_type: state.reportType,
+          source: "report_unlock_modal",
+        }),
+      });
+      const data = await response.json().catch(() => ({} as { checkout_url?: string; pay_url?: string; message?: string; error?: string }));
+      const checkoutUrl = String(data.checkout_url || data.pay_url || "");
+      if (!response.ok || !checkoutUrl) {
+        throw new Error(String(data.message || data.error || "支付暂未开放"));
+      }
+      window.location.href = checkoutUrl;
+    } catch (error) {
+      showToast(getPaymentErrorMessage(error));
+    } finally {
+      payingLockRef.current = null;
+      setPaying(null);
+    }
   }
 
   useEffect(() => {
@@ -787,8 +996,9 @@ function App() {
           signal: controller.signal,
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            client_id: `web_${Date.now()}`,
+            client_id: state.clientId,
             report_type: type.id,
+            right_key: type.rightKey,
             report_name: type.name,
             style_persona: PERSONAS[personaId].title,
             style_keywords: PERSONAS[personaId].keywords.join(" / "),
@@ -869,22 +1079,24 @@ function App() {
 
   const page = (() => {
     switch (state.route) {
-      case "purchase": return <PurchasePage products={products} nav={nav} showToast={showToast} />;
+      case "purchase": return <PurchasePage products={products} nav={nav} />;
       case "success": return <SuccessRedirectPage nav={nav} />;
-      case "select": return <SelectPage rights={state.rights} showComprehensiveReport={showComprehensiveReport} chooseReport={chooseReport} nav={nav} />;
+      case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
+      case "preanalysis": return <PreAnalysisPage state={state} setState={setState} type={reportType} products={products} nav={nav} onAnalyze={createPreAnalysis} onGenerate={startGenerate} onOpenPaywall={(reason) => setPaywall({ open: true, reason })} />;
       case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} />;
       case "progress": return <ProgressPage progress={state.progress} hasReport={!state.isGenerating && state.reports.length > 0} error={state.generationError} nav={nav} showToast={showToast} />;
       case "result": return <ResultPage state={state} showComprehensiveReport={showComprehensiveReport} nav={nav} showToast={showToast} />;
       case "admin": return <AdminPage state={state} setState={setState} updateAdmin={updateAdmin} showToast={showToast} />;
-      default: return <HomePage products={products} state={state} nav={nav} redeem={redeem} showToast={showToast} />;
+      default: return <HomePage state={state} nav={nav} />;
     }
   })();
 
   return (
     <>
       <Shell state={state} nav={nav}>{page}</Shell>
+      {paywall.open && <PaywallSheet paying={paying} onClose={() => setPaywall({ open: false })} onCheckout={startCheckout} />}
       {toast && <div className="toast show">{toast.text}</div>}
     </>
   );
@@ -932,15 +1144,9 @@ function Shell({ state, nav, children }: { state: AppState; nav: (route: Route) 
   );
 }
 
-function HomePage({ products, state, nav, redeem, showToast }: { products: Product[]; state: AppState; nav: (r: Route) => void; redeem: (c: string) => void; showToast: (t: string) => void }) {
-  const [code, setCode] = useState("");
+function HomePage({ state, nav }: { state: AppState; nav: (r: Route) => void }) {
   const previewOrder: ReportTypeId[] = ["hair", "makeup", "outfit", "look", "comprehensive"];
   const previewTypes = previewOrder.map((id) => REPORT_TYPES.find((type) => type.id === id)!).filter(Boolean);
-  const scrollToPackages = () => document.getElementById("packages")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const scrollToCoupon = () => {
-    document.getElementById("coupon")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    window.setTimeout(() => document.querySelector<HTMLInputElement>(".home-redeem-input")?.focus(), 350);
-  };
   return (
     <main className="page home-page report-page">
       <img className="home-bg-deco home-bg-star-1" src={HOME_ASSETS.sparkle} alt="" />
@@ -957,13 +1163,13 @@ function HomePage({ products, state, nav, redeem, showToast }: { products: Produ
           <p><span>一张照片，生成你的专属形象报告</span></p>
         </div>
         <div className="home-hero-actions">
-          <button className="home-cta primary" onClick={scrollToPackages}>
-            <img src={HOME_ASSETS.shoppingBag} alt="" />
-            <span>购买兑换码<small>低至 ￥1.9</small></span>
+          <button className="home-cta primary" onClick={() => nav("select")}>
+            <img src={HOME_ASSETS.magicWand} alt="" />
+            <span>开始免费形象预分析<small>先看方向，再决定是否生成</small></span>
           </button>
-          <button className="home-cta secondary" onClick={scrollToCoupon}>
-            <img src={HOME_ASSETS.ticketOutline} alt="" />
-            <span>我已有兑换码<small>去兑换报告</small></span>
+          <button className="home-cta secondary" onClick={() => document.querySelector(".preview-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+            <img src={HOME_ASSETS.reportCard} alt="" />
+            <span>查看报告样例<small>了解完整报告包含什么</small></span>
           </button>
         </div>
       </section>
@@ -984,32 +1190,13 @@ function HomePage({ products, state, nav, redeem, showToast }: { products: Produ
         </div>
       </section>
 
-      <section className="home-panel package-section" id="packages">
-        <div className="home-section-head">
-          <h2>选择你的报告套餐</h2>
-          <span>越多越划算</span>
-        </div>
-        <div className="home-package-list">
-          {products.map((product) => <HomePackageCard key={product.id} product={product} showToast={showToast} />)}
-        </div>
-      </section>
-
-      <section className="home-redeem-section" id="coupon">
-        <div className="home-redeem-title">
-          <img src={HOME_ASSETS.gift} alt="" />
-          <strong>兑换报告券</strong>
-        </div>
-        <input className="home-redeem-input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="请输入兑换码" maxLength={8} />
-        <button className="home-redeem-btn" onClick={() => redeem(code)}>立即兑换</button>
-      </section>
-
       <section className="home-panel step-section">
-        <h2>3 步轻松获取你的专属报告</h2>
+        <h2>先体验，再生成完整报告</h2>
         <div className="home-step-list">
           {[
-            [HOME_ASSETS.shoppingBag, "购买兑换码"],
-            [HOME_ASSETS.ticketPink, "输入兑换码"],
-            [HOME_ASSETS.profileUpload, "上传照片生成报告"],
+            [HOME_ASSETS.profileUpload, "选择专题并上传照片"],
+            [HOME_ASSETS.magicWand, "免费查看文字预分析"],
+            [HOME_ASSETS.wechat, "支付后生成完整报告"],
           ].map(([icon, title], index) => (
             <React.Fragment key={title}>
               {index > 0 && <div className="home-step-arrow">→</div>}
@@ -1087,17 +1274,17 @@ function HomePackageCard({ product, showToast }: { product: Product; showToast: 
   );
 }
 
-function ProductCard({ product, nav, showToast }: { product: Product; nav: (r: Route) => void; showToast: (t: string) => void }) {
+function ProductCard({ product, nav }: { product: Product; nav: (r: Route) => void }) {
   const full = product.id === "full";
-  return <article className={`product-card ${product.badge ? "featured" : ""} ${full ? "gold" : ""}`}>{product.badge && <span className="badge">{product.badge}</span>}<h3>{product.name}</h3><div className="price">¥{product.price}<small>{product.originalPrice ? ` ¥${product.originalPrice}` : ""}</small></div><p>{product.description}</p><div className="ticket-line"><span>综合 ×{product.rights.comprehensive}</span><span>专题 ×{product.rights.topic}</span></div><ul>{product.bullets.map((item) => <li key={item}><Check size={15} />{item}</li>)}</ul><button className={`btn ${full ? "gold" : "primary"} full`} onClick={() => product.purchaseLink ? window.open(product.purchaseLink, "_blank", "noopener") : showToast("商品链接待配置，请先在后台填写闲鱼链接")}>去购买<ExternalLink size={16} /></button><button className="btn light full" onClick={() => nav("admin")}>后台配置商品</button></article>;
+  return <article className={`product-card ${product.badge ? "featured" : ""} ${full ? "gold" : ""}`}>{product.badge && <span className="badge">{product.badge}</span>}<h3>{product.name}</h3><div className="price">¥{product.price}<small>{product.originalPrice ? ` ¥${product.originalPrice}` : ""}</small></div><p>{product.description}</p><div className="ticket-line"><span>综合 ×{product.rights.comprehensive}</span><span>专题 ×{product.rights.topic}</span></div><ul>{product.bullets.map((item) => <li key={item}><Check size={15} />{item}</li>)}</ul><button className={`btn ${full ? "gold" : "primary"} full`} onClick={() => nav("select")}>上传照片后解锁<Sparkles size={16} /></button></article>;
 }
 
-function PurchasePage({ products, nav, showToast }: { products: Product[]; nav: (r: Route) => void; showToast: (t: string) => void }) {
-  return <main className="page"><PageHeader title="购买兑换码" description="购买后会获得兑换码，回到首页输入兑换码即可生成报告。当前闲鱼链接可在后台随时配置。" onBack={() => nav("home")} backLabel="返回首页" align="left" /><div className="product-list">{products.map((p) => <ProductCard key={p.id} product={p} nav={nav} showToast={showToast} />)}</div><FAQ /></main>;
+function PurchasePage({ products, nav }: { products: Product[]; nav: (r: Route) => void }) {
+  return <main className="page"><PageHeader title="完整报告权益" description="先完成免费预分析，再在生成完整报告前选择微信/支付宝支付。" onBack={() => nav("home")} backLabel="返回首页" align="left" /><div className="product-list">{products.map((p) => <ProductCard key={p.id} product={p} nav={nav} />)}</div><FAQ /></main>;
 }
 
 function FAQ() {
-  return <section className="section faq"><h2>常见问题</h2>{[["兑换码多久有效？", "兑换券自生成日起 30 天内有效，请尽快使用。"], ["可以基于同一张照片继续生成吗？", "可以。三次探索卡和全案探索卡可继续探索不同专题。"], ["报告可以分享吗？", "可以。结果页支持下载报告，并一键准备小红书封面图和文案。"]].map(([q, a]) => <details key={q} open><summary>{q}</summary><p>{a}</p></details>)}</section>;
+  return <section className="section faq"><h2>常见问题</h2>{[["免费预分析会生成图片吗？", "不会。预分析只给文字方向，支付后才会生成完整高清报告图。"], ["可以基于同一张照片继续生成吗？", "可以。三次探索卡和全案探索卡可继续探索不同专题。"], ["报告可以分享吗？", "可以。结果页支持下载报告，并一键准备小红书封面图和文案。"]].map(([q, a]) => <details key={q} open><summary>{q}</summary><p>{a}</p></details>)}</section>;
 }
 
 function PageHeader({
@@ -1146,7 +1333,7 @@ function SectionDivider({ title }: { title: string }) {
   return <div className="success-section-title"><img src={FULL_CARD_ASSETS.sparkleDivider} alt="" /><span>{title}</span><img src={FULL_CARD_ASSETS.sparkleDivider} alt="" /></div>;
 }
 
-function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { rights: Rights; showComprehensiveReport: boolean; chooseReport: (id: ReportTypeId) => void; nav: (r: Route) => void }) {
+function SelectPage({ rights, chooseReport, nav }: { rights: Rights; chooseReport: (id: ReportTypeId) => void; nav: (r: Route) => void }) {
   const topicRef = useRef<HTMLDivElement | null>(null);
   const topicCardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeTopicIndex, setActiveTopicIndex] = useState(0);
@@ -1195,26 +1382,25 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
     <main className="choose-report-page">
       <div className="choose-bg-star choose-bg-star-a">✦</div>
       <div className="choose-bg-star choose-bg-star-b">✦</div>
-      <PageHeader title="选择报告类型" onBack={() => nav("home")} backLabel="返回首页" />
+      <PageHeader title="选择报告类型" description="免费预分析无需购买，完整报告会在生成前再支付。" onBack={() => nav("home")} backLabel="返回首页" />
 
       <section className="choose-quota choose-quota-inline" aria-label="剩余报告次数">
-        {showComprehensiveReport && <span><ReceiptText />综合剩余 <b>{rights.comprehensive}</b></span>}
-        <span><KeyRound />专题剩余 <b>{rights.topic}</b></span>
+        <span><Sparkles />免费预分析 <b>可用</b></span>
+        <span><KeyRound />已购专题 <b>{rights.topic}</b></span>
+        <span><ReceiptText />已购综合 <b>{rights.comprehensive}</b></span>
       </section>
 
-      {showComprehensiveReport && (
-        <section className={`choose-main-card choose-report-card ${rights.comprehensive > 0 ? "" : "is-disabled"}`} aria-label="综合形象报告">
+      <section className="choose-main-card choose-report-card" aria-label="综合形象报告">
           <div className="choose-main-copy">
-            <h2>综合形象报告 <span>先看总方向</span></h2>
+            <h2>综合形象报告 <span>全案探索卡可生成</span></h2>
             <p>先把发型、色彩、面部状态、穿搭和场景感放到一张图里，再决定后面要不要补专题。</p>
-            <button className="choose-primary-btn" onClick={() => chooseReport("comprehensive")} disabled={rights.comprehensive <= 0}>生成这份综合报告</button>
+            <button className="choose-primary-btn" onClick={() => chooseReport("comprehensive")}>先做综合预分析</button>
           </div>
           <div className="choose-main-visual">
             <img className="choose-badge" src={CHOOSE_REPORT_ASSETS.badge} alt="全案专享" />
             <img className="choose-preview" src={CHOOSE_REPORT_ASSETS.comprehensivePreview} alt="综合形象报告预览" />
           </div>
-        </section>
-      )}
+      </section>
 
       <section className="choose-topic-section" aria-label="报告类型">
         <div className="choose-topic-divider" aria-hidden="true" />
@@ -1225,11 +1411,9 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
               ref={(node) => { topicCardRefs.current[index] = node; }}
               type="button"
               data-index={index}
-              className={`choose-topic-card choose-report-card ${rights.topic > 0 ? "" : "is-disabled"} ${activeTopicIndex === index ? "is-active" : ""}`}
+              className={`choose-topic-card choose-report-card ${activeTopicIndex === index ? "is-active" : ""}`}
               style={{ "--topic-border": topic.border, "--topic-tint": topic.tint } as React.CSSProperties}
               onClick={() => chooseReport(topic.id)}
-              disabled={rights.topic <= 0}
-              aria-disabled={rights.topic <= 0}
             >
               <div className="choose-topic-copy">
                 <h2>{topic.title}</h2>
@@ -1238,7 +1422,7 @@ function SelectPage({ rights, showComprehensiveReport, chooseReport, nav }: { ri
               <div className="choose-topic-image">
                 <img src={topic.image} alt={`${topic.title}配图`} />
               </div>
-              <span>{rights.topic > 0 ? "选择该专题" : "当前次数不足"}</span>
+              <span>先做该专题预分析</span>
             </button>
           ))}
         </div>
@@ -1273,6 +1457,8 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
   const zoneImage = state.uploadStatus === "success" || state.uploadStatus === "uploading"
     ? state.photoUrl
     : PHOTO_UPLOAD_ASSETS.uploadPlaceholder;
+  const reportType = REPORT_TYPES.find((item) => item.id === state.reportType) || REPORT_TYPES[0];
+  const requirement = reportPhotoRequirement(reportType.id);
 
   const openPicker = () => fileRef.current?.click();
 
@@ -1377,6 +1563,9 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
       uploadErrorMessage: undefined,
       photoName: "示例照片",
       photoUrl: HOME_ASSETS.heroPerson,
+      photoDataUrl: undefined,
+      isGenerating: false,
+      generationError: undefined,
     });
     showToast("已使用示例照片");
   };
@@ -1384,6 +1573,17 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
   return (
     <main className="page upload-page">
       <PageHeader title="上传照片" onBack={() => nav("select")} backLabel="返回选择报告" align="left" />
+
+      <section className={`topic-photo-requirement ${requirement.strictness}`}>
+        <div>
+          <span>{reportType.name}</span>
+          <h2>{requirement.title}</h2>
+          <p>{requirement.desc}</p>
+        </div>
+        <div className="topic-photo-tags">
+          {requirement.tips.map((tip) => <b key={tip}>{tip}</b>)}
+        </div>
+      </section>
 
       <section className="photo-tips-card">
         <div className="tips-title"><img src={PHOTO_UPLOAD_ASSETS.tinyStars} alt="" />拍照小贴士</div>
@@ -1525,7 +1725,7 @@ function PreferencesPage({
     setSaving(true);
     window.setTimeout(() => {
       setSaving(false);
-      nav("confirm");
+      nav("preanalysis");
     }, 420);
   };
 
@@ -1678,6 +1878,214 @@ function ReuploadDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfi
   );
 }
 
+function PreAnalysisPage({
+  state,
+  setState,
+  type,
+  products,
+  nav,
+  onAnalyze,
+  onGenerate,
+  onOpenPaywall,
+}: {
+  state: AppState;
+  setState: React.Dispatch<React.SetStateAction<AppState>>;
+  type: ReportType;
+  products: Product[];
+  nav: (r: Route) => void;
+  onAnalyze: () => void;
+  onGenerate: () => void;
+  onOpenPaywall: (reason: string) => void;
+}) {
+  useEffect(() => {
+    if (!state.preAnalysis || state.preAnalysis.reportType !== type.id) onAnalyze();
+  }, [state.preAnalysis, type.id]);
+  const analysis = state.preAnalysis?.reportType === type.id ? state.preAnalysis : undefined;
+  const recommendedProduct = products.find((item) => item.id === (analysis?.recommendedProductId || (type.id === "comprehensive" ? "full" : "single")));
+  const hasRight = state.rights[type.rightKey] > 0;
+  const fitLabel = analysis?.photoFit === "warning" ? "建议优化照片" : analysis?.photoFit === "poor" ? "建议重新上传" : "照片基础可用";
+  return (
+    <main className="page preanalysis-page">
+      <PageHeader title="免费预分析" description="这里不会调用正式生图模型，完整报告会在支付后生成。" onBack={() => nav("preferences")} backLabel="返回偏好" align="left" />
+
+      <section className="preanalysis-hero">
+        <div className="preanalysis-photo">
+          <img src={state.photoUrl || PHOTO_UPLOAD_ASSETS.uploadPlaceholder} alt="上传照片预览" />
+          <span>{type.name}</span>
+        </div>
+        <div className="preanalysis-copy">
+          <small>AISea Preview</small>
+          <h2>{analysis?.title || `${type.name}预分析`}</h2>
+          <p>{analysis?.summary || "正在读取照片、专题和偏好，生成一份低成本文字预分析。"}</p>
+        </div>
+      </section>
+
+      {state.isPreAnalyzing && (
+        <section className="preanalysis-loading">
+          <Sparkles />
+          <span>正在生成文字预分析...</span>
+        </section>
+      )}
+
+      {analysis && (
+        <>
+          <section className={`preanalysis-fit ${analysis.photoFit}`}>
+            <b>{fitLabel}</b>
+            <p>{analysis.photoAdvice}</p>
+          </section>
+
+          <section className="preanalysis-keywords">
+            {analysis.keywords.map((keyword) => <span key={keyword}>{keyword}</span>)}
+          </section>
+
+          <section className="preanalysis-sections">
+            {analysis.sections.map((section) => (
+              <article key={section.title}>
+                <h3>{section.title}</h3>
+                <p>{section.text}</p>
+              </article>
+            ))}
+          </section>
+
+          {state.preAnalysisError && <p className="preanalysis-note">接口暂不可用，当前展示本地预分析模板：{state.preAnalysisError}</p>}
+        </>
+      )}
+
+      <section className="preanalysis-pay-card">
+        <div>
+          <span>下一步</span>
+          <h2>{hasRight ? "使用已购权益生成完整报告" : `生成完整报告${recommendedProduct ? ` ¥${recommendedProduct.price}` : ""}`}</h2>
+          <p>{hasRight ? "将消耗 1 次对应权益，生成失败不会扣减。" : "完成微信/支付宝支付后，才会调用正式生图模型。"}</p>
+        </div>
+        <button
+          type="button"
+          className={`confirm-privacy-row preanalysis-privacy-row ${state.privacyAccepted ? "checked" : ""}`}
+          onClick={() => setState((s) => ({ ...s, privacyAccepted: !s.privacyAccepted }))}
+        >
+          <span className="confirm-checkbox">{state.privacyAccepted && <Check size={16} strokeWidth={3} aria-hidden="true" />}</span>
+          <span className="confirm-privacy-copy">
+            <strong>我确认上传的是本人照片</strong>
+            <span>{PRIVACY_TEXT}</span>
+          </span>
+        </button>
+        <button className="confirm-primary-btn" onClick={hasRight ? onGenerate : () => onOpenPaywall("生成完整报告前需要先完成支付")}>
+          <span>{hasRight ? "开始生成完整报告" : "选择报告套餐"}</span>
+          <Sparkles size={18} />
+        </button>
+        <button className="confirm-secondary-btn" onClick={() => nav("upload")}>重新上传照片</button>
+      </section>
+    </main>
+  );
+}
+
+function PaywallSheet({
+  paying,
+  onClose,
+  onCheckout,
+}: {
+  paying: PayingState;
+  onClose: () => void;
+  onCheckout: (item: PaywallPackage, channel: PayChannel) => void;
+}) {
+  return (
+    <div className="paywall-backdrop" onClick={onClose}>
+      <section className="paywall-sheet" onClick={(e) => e.stopPropagation()} aria-label="选择报告套餐">
+        <button className="paywall-close" onClick={onClose} aria-label="关闭">
+          <XMark />
+        </button>
+
+        <div className="sheet-handle" />
+
+        <header className="paywall-header">
+          <h2>选择报告套餐</h2>
+          <p>生成完整报告前需先完成支付</p>
+        </header>
+
+        <div className="paywall-products">
+          {PAYWALL_PACKAGES.map((item) => (
+            <article className="package-card" key={item.id}>
+              {item.badge && <div className="package-badge">{item.badge}</div>}
+              <div className="package-main">
+                <div className="package-icon" aria-hidden="true">
+                  <PackageGlyph kind={item.icon} />
+                </div>
+                <div className="package-info">
+                  <div className="package-title">{item.title}</div>
+                  <div className="package-desc">{item.description}</div>
+                </div>
+                <div className="package-price">
+                  <div className="price">¥{item.price}</div>
+                  {item.originalPrice && <div className="origin-price">¥{item.originalPrice}</div>}
+                </div>
+              </div>
+
+              <div className="payment-buttons">
+                <button
+                  type="button"
+                  className="pay-button wechat"
+                  onClick={() => onCheckout(item, "wechat")}
+                  disabled={paying?.packageId === item.id}
+                >
+                  <WechatPayIcon />
+                  {isPaying(paying, item.id, "wechat") ? "跳转中..." : "微信支付"}
+                </button>
+                <button
+                  type="button"
+                  className="pay-button alipay"
+                  onClick={() => onCheckout(item, "alipay")}
+                  disabled={paying?.packageId === item.id}
+                >
+                  <AlipayPayIcon />
+                  {isPaying(paying, item.id, "alipay") ? "跳转中..." : "支付宝支付"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <footer className="paywall-footer">
+          <ShieldCheck size={16} />
+          <span>支付安全有保障</span>
+          <span className="paywall-divider">|</span>
+          <span>订单完成后可在「我的订单」中查看</span>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function PackageGlyph({ kind }: { kind: PaywallPackage["icon"] }) {
+  if (kind === "card") return <PackagePlus size={28} strokeWidth={1.9} />;
+  if (kind === "crown") return <Crown size={28} strokeWidth={1.9} />;
+  return <FileText size={28} strokeWidth={1.9} />;
+}
+
+function WechatPayIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M9.2 3.5c3.9 0 7 2.4 7 5.4 0 2.9-3.1 5.4-7 5.4-.4 0-.9 0-1.3-.1L4.8 16l.9-2.8C4.5 12.2 3.6 10.9 3.6 8.9c0-3 3.1-5.4 5.6-5.4Z" fill="currentColor" opacity=".18" />
+      <path d="M10.2 6.2h3.4v1.1h-1.1l1.1 1.6h-1.4l-.8-1.2-.8 1.2H9.2l1.1-1.6H9.2V6.2Zm-1.6 5.4c-.4 0-.8.3-.8.7s.4.7.8.7.8-.3.8-.7-.4-.7-.8-.7Zm3.6 0c-.4 0-.8.3-.8.7s.4.7.8.7.8-.3.8-.7-.4-.7-.8-.7Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function AlipayPayIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="5" y="6.5" width="14" height="11" rx="3" fill="currentColor" opacity=".15" />
+      <path d="M8 6.8h8.1v1.8H13l2.9 6.2H14l-.8-1.8H9.7l-.7 1.8H7.2l2.8-6.2H8V6.8Zm2.3 4.6h2.6L12 8.9l-1.7 2.5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function XMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" />
+    </svg>
+  );
+}
+
 function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: AppState; setState: React.Dispatch<React.SetStateAction<AppState>>; type: ReportType; nav: (r: Route) => void; startGenerate: () => void }) {
   const selectedPreferenceLabels = [
     ...state.preferences.stylePreferences.map((item) => ({ key: `style-${item}`, label: preferenceLabel("style", item) })),
@@ -1687,8 +2095,6 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
   const isInvalidPhoto = state.uploadStatus === "error" || state.photoCheckResult === "failed";
   const hasPhoto = Boolean(state.photoUrl);
   const canGenerate = hasPhoto && !isInvalidPhoto && state.privacyAccepted && state.rights[type.rightKey] > 0 && !state.isGenerating;
-  const privacyText = "我知悉并同意本人照片用于生成形象分析报告。我们将严格保护您的隐私，不会用于其他用途。";
-
   return (
     <main className="page confirm-generate-page">
       <img className="confirm-bg confirm-bg-left" src={CONFIRM_GENERATE_ASSETS.decoSmall} alt="" aria-hidden="true" />
@@ -1750,7 +2156,7 @@ function ConfirmPage({ state, setState, type, nav, startGenerate }: { state: App
         <span className="confirm-checkbox">{state.privacyAccepted && <Check size={16} strokeWidth={3} aria-hidden="true" />}</span>
         <span className="confirm-privacy-copy">
           <strong>我确认上传的是本人照片</strong>
-          <span>{privacyText}</span>
+          <span>{PRIVACY_TEXT}</span>
         </span>
       </button>
 

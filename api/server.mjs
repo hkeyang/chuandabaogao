@@ -114,6 +114,7 @@ const defaultPurchaseLink = "https://www.goofish.com/";
 
 let store = {
   redemptions: [],
+  entitlements: [],
   reports: {},
   shares: [],
 };
@@ -555,6 +556,16 @@ async function handleApi(req, res, url) {
       product_id: product.id,
       redeemed_at: redeemedAt,
     });
+    store.entitlements.push({
+      id: `ent_${Date.now()}`,
+      client_id: String(body.client_id || ""),
+      product_id: product.id,
+      topic_remaining: product.rights.topic,
+      comprehensive_remaining: product.rights.comprehensive,
+      status: "active",
+      created_at: redeemedAt,
+      updated_at: redeemedAt,
+    });
     await saveStore();
     json(res, 200, {
       coupon_code: code,
@@ -565,10 +576,84 @@ async function handleApi(req, res, url) {
     return true;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/preanalysis/create") {
+    const body = await readJson(req);
+    if (!body) {
+      json(res, 400, { error: "invalid_json" });
+      return true;
+    }
+    const reportType = String(body.report_type || "hair");
+    const labels = {
+      comprehensive: "综合形象报告",
+      hair: "发型发色专题",
+      makeup: "色彩面部专题",
+      outfit: "穿搭配饰专题",
+      look: "场景 Look 专题",
+    };
+    const requirements = {
+      comprehensive: "建议使用正脸半身照，看清脸部、发型、肩颈和上半身轮廓。",
+      hair: "建议使用清晰正脸照，头部完整、发际线和发量可见。",
+      makeup: "建议使用自然光正脸照，肤色不偏色、五官清楚。",
+      outfit: "建议使用半身以上照片，能看到上半身穿搭和肩颈比例。",
+      look: "建议使用接近全身照，能看到整体比例、服装和姿态。",
+    };
+    const fit = body.photo_check_result === "warning" ? "warning" : body.photo_check_result === "failed" ? "poor" : "good";
+    json(res, 200, {
+      id: `pa_${Date.now()}`,
+      reportType,
+      title: `${labels[reportType] || labels.hair}预分析`,
+      summary: `当前偏好是「${body.style_preference || "系统推荐"} / ${body.scene_preference || "日常干净"} / ${body.change_level || "轻微优化"}」。这一步只生成文字方向，支付后才会调用正式生图模型生成完整报告。`,
+      keywords: reportType === "comprehensive" ? ["完整定位", "多维建议", "可保存长图"] : ["方向明确", "低门槛试用", "可升级多次"],
+      photoFit: fit,
+      photoAdvice: requirements[reportType] || requirements.hair,
+      recommendedProductId: reportType === "comprehensive" ? "full" : "single",
+      sections: [
+        { title: "推荐生成", text: reportType === "comprehensive" ? "适合直接购买全案探索卡，先得到完整形象定位。" : `适合先生成${labels[reportType] || labels.hair}，看一个方向是否准确。` },
+        { title: "照片要求", text: requirements[reportType] || requirements.hair },
+        { title: "成本控制", text: "预分析不生成图片；只有支付成功并确认生成后，才会调用正式生图接口。" },
+      ],
+    });
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/orders/checkout") {
+    json(res, 503, {
+      error: "stripe_payments_not_enabled",
+      message: "Stripe 支付暂未启用，配置 STRIPE_SECRET_KEY 和 STRIPE_WEBHOOK_SECRET 后即可联调。",
+      stripe_enabled: false,
+    });
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/me/entitlements") {
+    const clientId = url.searchParams.get("client_id") || "";
+    json(res, clientId ? 200 : 400, clientId
+      ? { entitlements: store.entitlements.filter((item) => item.client_id === clientId) }
+      : { error: "client_id_required" });
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/me/reports") {
+    const clientId = url.searchParams.get("client_id") || "";
+    const reports = Object.values(store.reports).filter((item) => item.client_id === clientId);
+    json(res, clientId ? 200 : 400, clientId ? { reports } : { error: "client_id_required" });
+    return true;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/reports/generate") {
     const body = await readJson(req);
     if (!body) {
       json(res, 400, { error: "invalid_json" });
+      return true;
+    }
+    const clientId = String(body.client_id || "");
+    const rightKey = String(body.right_key || "topic");
+    const entitlement = store.entitlements.find((item) => item.client_id === clientId && item.status === "active" && (rightKey === "comprehensive" ? item.comprehensive_remaining > 0 : item.topic_remaining > 0));
+    if (!entitlement) {
+      json(res, 402, {
+        error: "entitlement_required",
+        message: rightKey === "comprehensive" ? "请先购买全案探索卡，再生成综合报告。" : "请先完成支付，再生成完整专题报告。",
+      });
       return true;
     }
     const reportId = `rpt_${Date.now()}`;
@@ -587,6 +672,7 @@ async function handleApi(req, res, url) {
     }
     const report = {
       report_id: reportId,
+      client_id: clientId,
       status: assets.report_image_url ? "completed" : "failed",
       progress: assets.report_image_url ? 100 : 0,
       report_type: body.report_type || "comprehensive",
@@ -603,6 +689,12 @@ async function handleApi(req, res, url) {
       prompt,
     };
     store.reports[reportId] = report;
+    if (report.status === "completed") {
+      if (rightKey === "comprehensive") entitlement.comprehensive_remaining = Math.max(0, entitlement.comprehensive_remaining - 1);
+      else entitlement.topic_remaining = Math.max(0, entitlement.topic_remaining - 1);
+      entitlement.status = entitlement.topic_remaining <= 0 && entitlement.comprehensive_remaining <= 0 ? "exhausted" : "active";
+      entitlement.updated_at = new Date().toISOString();
+    }
     await saveStore();
     json(res, 200, report);
     return true;

@@ -2,6 +2,19 @@ export type ProductId = "single" | "triple" | "full";
 export type ReportTypeId = "comprehensive" | "hair" | "makeup" | "outfit" | "look";
 export type Role = "owner" | "admin" | "operator" | "viewer";
 export type PreferenceMode = "single" | "multiple";
+export type PayChannel = "wechat" | "alipay";
+export type PaywallIcon = "document" | "card" | "crown";
+
+export interface PaywallPackage {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  badge?: string;
+  icon: PaywallIcon;
+  productIds: Record<PayChannel, string>;
+}
 
 export interface Product {
   id: ProductId;
