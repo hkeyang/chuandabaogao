@@ -36,6 +36,7 @@ type Route = "home" | "purchase" | "success" | "select" | "upload" | "preference
 type Toast = { id: number; text: string };
 type PaywallState = { open: boolean; reason?: string };
 type PayingState = { packageId: string; channel: PayChannel } | null;
+const ALLOWED_ROUTES: Route[] = ["home", "purchase", "success", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
 type PreAnalysis = {
   id: string;
   reportType: ReportTypeId;
@@ -76,6 +77,16 @@ function getPaymentErrorMessage(error: unknown) {
 
 function isPaying(paying: PayingState, packageId: string, channel: PayChannel) {
   return paying?.packageId === packageId && paying?.channel === channel;
+}
+
+function routeFromHash(hash = window.location.hash): Route {
+  const raw = (hash.replace(/^#\/?/, "") || "home").split(/[?&]/)[0] as Route;
+  return ALLOWED_ROUTES.includes(raw) ? raw : "home";
+}
+
+function hashSearchParams(hash = window.location.hash) {
+  const query = hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : "";
+  return new URLSearchParams(query);
 }
 
 const PRIVACY_TEXT = "我知悉并同意本人照片用于生成形象分析报告。我们将严格保护您的隐私，不会用于其他用途。";
@@ -408,11 +419,9 @@ function getClientId() {
 }
 
 function loadState(): AppState {
-  const hashRoute = (window.location.hash.replace(/^#\/?/, "") || "home") as Route;
   const params = new URLSearchParams(window.location.search);
-  const allowedRoutes: Route[] = ["home", "purchase", "success", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
   const fallback: AppState = {
-    route: allowedRoutes.includes(hashRoute) ? hashRoute : "home",
+    route: routeFromHash(),
     clientId: getClientId(),
     rights: { topic: 0, comprehensive: 0 },
     reportType: "comprehensive",
@@ -833,9 +842,7 @@ function App() {
 
   useEffect(() => {
     const onHash = () => {
-      const route = (window.location.hash.replace(/^#\/?/, "") || "home") as Route;
-      const allowedRoutes: Route[] = ["home", "purchase", "success", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
-      if (allowedRoutes.includes(route)) setState((s) => ({ ...s, route }));
+      setState((s) => ({ ...s, route: routeFromHash() }));
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -889,6 +896,10 @@ function App() {
 function startGenerate() {
   if (state.isGenerating) return showToast("正在生成中，请勿重复点击");
   if (!state.photoUrl) return showToast("请先上传照片");
+  if (!state.preAnalysis || state.preAnalysis.reportType !== reportType.id) {
+    nav("preanalysis");
+    return;
+  }
   if (!state.privacyAccepted) return showToast("请先勾选本人照片确认");
   if (state.rights[reportType.rightKey] <= 0) {
     setPaywall({ open: true, reason: reportType.rightKey === "comprehensive" ? "综合报告需要全案探索卡权益" : "生成完整专题前需要先完成支付" });
@@ -1020,10 +1031,10 @@ function startGenerate() {
           }
         })() : {};
         if (!response.ok) {
-          throw new Error(String(data.error || data.message || data.raw || `generate failed with HTTP ${response.status}`));
+          throw new Error(String(data.message || data.error || data.raw || `generate failed with HTTP ${response.status}`));
         }
-        if (data.status && data.status !== "completed") throw new Error(String(data.error || data.message || "生成失败，请重试"));
-        if (!data.report_image_url) throw new Error(String(data.error || data.message || "报告图生成失败，请重新生成"));
+        if (data.status && data.status !== "completed") throw new Error(String(data.message || data.error || "生成失败，请重试，未扣除权益"));
+        if (!data.report_image_url) throw new Error(String(data.message || data.error || "报告图生成失败，请重新生成，未扣除权益"));
         if (generationId !== generationSeqRef.current) return;
         const rightKey = type.rightKey;
         setState((latest) => {
@@ -1091,7 +1102,7 @@ function startGenerate() {
       case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
-      case "preanalysis": return <PreAnalysisPage state={state} setState={setState} type={reportType} products={products} nav={nav} onAnalyze={createPreAnalysis} />;
+      case "preanalysis": return <PreAnalysisPage state={state} type={reportType} products={products} nav={nav} onAnalyze={createPreAnalysis} onOpenPaywall={(reason) => setPaywall({ open: true, reason })} />;
       case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} onOpenPaywall={(reason) => setPaywall({ open: true, reason })} />;
       case "progress": return <ProgressPage progress={state.progress} hasReport={!state.isGenerating && state.reports.length > 0} error={state.generationError} nav={nav} showToast={showToast} />;
       case "result": return <ResultPage state={state} showComprehensiveReport={showComprehensiveReport} nav={nav} showToast={showToast} />;
@@ -1338,6 +1349,10 @@ function SuccessRedirectPage({
     let cancelled = false;
     const syncRights = async () => {
       try {
+        const sessionId = new URLSearchParams(window.location.search).get("session_id") || hashSearchParams().get("session_id") || "";
+        if (sessionId) {
+          await fetch(`/api/orders/by-session/${encodeURIComponent(sessionId)}`).catch(() => undefined);
+        }
         const response = await fetch(`/api/me/entitlements?client_id=${encodeURIComponent(state.clientId)}`);
         const data = await response.json().catch(() => ({} as { entitlements?: Array<{ topic_remaining?: number; comprehensive_remaining?: number }> }));
         if (response.ok && Array.isArray(data.entitlements)) {
@@ -1351,14 +1366,15 @@ function SuccessRedirectPage({
           }
         }
       } finally {
-        if (!cancelled) nav("select");
+        const hasActivePhoto = state.uploadStatus === "success" || Boolean(state.preAnalysis);
+        if (!cancelled) nav(hasActivePhoto ? (state.preAnalysis ? "preanalysis" : "confirm") : "select");
       }
     };
     void syncRights();
     return () => {
       cancelled = true;
     };
-  }, [nav, setState, state.clientId]);
+  }, [nav, setState, state.clientId, state.preAnalysis, state.uploadStatus]);
   return <main className="page success-page" aria-live="polite">支付成功，正在更新权益...</main>;
 }
 
@@ -1917,18 +1933,18 @@ function ReuploadDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfi
 
 function PreAnalysisPage({
   state,
-  setState,
   type,
   products,
   nav,
   onAnalyze,
+  onOpenPaywall,
 }: {
   state: AppState;
-  setState: React.Dispatch<React.SetStateAction<AppState>>;
   type: ReportType;
   products: Product[];
   nav: (r: Route) => void;
   onAnalyze: () => void;
+  onOpenPaywall: (reason: string) => void;
 }) {
   useEffect(() => {
     if (!state.preAnalysis || state.preAnalysis.reportType !== type.id) onAnalyze();
@@ -1988,21 +2004,21 @@ function PreAnalysisPage({
         <div>
           <span className="preanalysis-pay-card__eyebrow">下一步</span>
           <h2>{hasRight ? "使用已购权益生成完整报告" : `生成完整报告${recommendedProduct ? ` ¥${recommendedProduct.price}` : ""}`}</h2>
-          <p>{hasRight ? "将消耗 1 次对应权益，生成失败不会扣减。" : "完成微信/支付宝支付后，才会调用正式生图模型。"}</p>
+          <p>{hasRight ? "下一页会再次确认本人照片，生成成功后才扣权益。" : "先完成微信/支付宝支付；支付成功后会回到这里继续生成。"}</p>
         </div>
         <button
-          type="button"
-          className={`confirm-privacy-row preanalysis-privacy-row ${state.privacyAccepted ? "checked" : ""}`}
-          onClick={() => setState((s) => ({ ...s, privacyAccepted: !s.privacyAccepted }))}
+          className="confirm-primary-btn"
+          onClick={() => {
+            if (!analysis || state.isPreAnalyzing) return;
+            if (!hasRight) {
+              onOpenPaywall(type.rightKey === "comprehensive" ? "综合报告需要先购买全案探索卡" : "生成完整专题前需要先完成支付");
+              return;
+            }
+            nav("confirm");
+          }}
+          disabled={!analysis || state.isPreAnalyzing}
         >
-          <span className="confirm-checkbox">{state.privacyAccepted && <Check size={16} strokeWidth={3} aria-hidden="true" />}</span>
-          <span className="confirm-privacy-copy">
-            <strong>我确认上传的是本人照片</strong>
-            <span>{PRIVACY_TEXT}</span>
-          </span>
-        </button>
-        <button className="confirm-primary-btn" onClick={() => nav("confirm")}>
-          <span className="confirm-primary-btn__label">进入确认生成</span>
+          <span className="confirm-primary-btn__label">{hasRight ? "生成完整报告" : "选择套餐并支付"}</span>
           <Sparkles size={18} />
         </button>
         <button className="confirm-secondary-btn" onClick={() => nav("upload")}>重新上传照片</button>
@@ -2150,7 +2166,7 @@ function ConfirmPage({
       <img className="confirm-bg confirm-bg-left" src={CONFIRM_GENERATE_ASSETS.decoSmall} alt="" aria-hidden="true" />
       <img className="confirm-bg confirm-bg-right" src={CONFIRM_GENERATE_ASSETS.decoLarge} alt="" aria-hidden="true" />
 
-      <PageHeader title="确认生成" onBack={() => nav("preferences")} backLabel="返回修改" />
+      <PageHeader title="确认生成" onBack={() => nav("preanalysis")} backLabel="返回预分析" />
 
       <section className="confirm-report-card confirm-fade-in" style={{ animationDelay: "0ms" }}>
         <div className="confirm-report-head">
@@ -2226,7 +2242,7 @@ function ConfirmPage({
           <span className="confirm-primary-btn__label">{state.isGenerating ? "生成中..." : hasRight ? "开始生成报告" : "选择报告套餐"}</span>
           <Sparkles size={18} />
         </button>
-        <button className="confirm-secondary-btn" onClick={() => nav("preferences")}>返回修改</button>
+        <button className="confirm-secondary-btn" onClick={() => nav("preanalysis")}>返回预分析</button>
       </div>
     </main>
   );

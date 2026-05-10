@@ -70,6 +70,50 @@ const PRODUCT_PACKAGE_MAP: Record<string, string> = {
   full_case_wechat: "full_case",
   full_case_alipay: "full_case",
 };
+const DEFAULT_PRODUCT_ROWS: ProductRow[] = [
+  {
+    id: "single",
+    name: "单次专题报告券",
+    price: 1.9,
+    original_price: null,
+    badge: null,
+    description: "专题 ×1",
+    topic_rights: 1,
+    comprehensive_rights: 0,
+    purchase_link: "",
+    enabled: 1,
+    sort_order: 1,
+    updated_at: "2026-05-10T00:00:00.000Z",
+  },
+  {
+    id: "triple",
+    name: "三次探索卡",
+    price: 4.9,
+    original_price: 5.7,
+    badge: "推荐",
+    description: "专题 ×3",
+    topic_rights: 3,
+    comprehensive_rights: 0,
+    purchase_link: "",
+    enabled: 1,
+    sort_order: 2,
+    updated_at: "2026-05-10T00:00:00.000Z",
+  },
+  {
+    id: "full",
+    name: "全案探索卡",
+    price: 9.9,
+    original_price: 15.9,
+    badge: "最完整",
+    description: "综合 ×1 / 专题 ×3",
+    topic_rights: 3,
+    comprehensive_rights: 1,
+    purchase_link: "",
+    enabled: 1,
+    sort_order: 3,
+    updated_at: "2026-05-10T00:00:00.000Z",
+  },
+];
 const PAYMENT_METHODS_BY_CHANNEL: Record<PayChannel, string[]> = {
   wechat: ["wechat_pay"],
   alipay: ["alipay"],
@@ -118,6 +162,32 @@ const json = (data: unknown, init: ResponseInit = {}) =>
   });
 
 const now = () => new Date().toISOString();
+
+function isMissingTableError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /no such table/i.test(message);
+}
+
+function setupRequiredResponse(detail = "支付系统数据表尚未初始化，请稍后重试。") {
+  return json({
+    error: "database_setup_required",
+    message: detail,
+  }, { status: 503 });
+}
+
+function userFacingGenerationError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (isMissingTableError(error)) return "支付系统数据表尚未初始化，请稍后重试。";
+  if (/OPENAI_API_KEY/i.test(message)) return "生图服务密钥未配置，请联系管理员。";
+  if (/R2 binding/i.test(message)) return "报告存储服务未配置，请联系管理员。";
+  if (/user photo/i.test(message)) return "照片数据缺失，请重新上传后再试。";
+  if (/timed out/i.test(message)) return "生图等待超时，请稍后重新生成，未扣除权益。";
+  if (/image upload failed/i.test(message)) return "照片上传到生图服务失败，请重新上传后再试。";
+  if (/image task submit failed/i.test(message)) return "生图任务提交失败，请稍后重新生成，未扣除权益。";
+  if (/image task query failed/i.test(message)) return "生图任务查询失败，请稍后重新生成，未扣除权益。";
+  if (/completed without/i.test(message)) return "生图服务没有返回报告图，请重新生成，未扣除权益。";
+  return message || "生成失败，请重新生成，未扣除权益。";
+}
 
 function randomId(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "").slice(0, 18)}`;
@@ -583,9 +653,15 @@ async function handleApi(request: Request, env: Env, url: URL) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/config") {
-    const products = await env.DB.prepare("SELECT * FROM products WHERE enabled = 1 ORDER BY sort_order ASC").all();
+    let productRows: ProductRow[] = DEFAULT_PRODUCT_ROWS;
+    try {
+      const products = await env.DB.prepare("SELECT * FROM products WHERE enabled = 1 ORDER BY sort_order ASC").all<ProductRow>();
+      if (products.results.length) productRows = products.results;
+    } catch (err) {
+      if (!isMissingTableError(err)) throw err;
+    }
     return json({
-      products: products.results,
+      products: productRows,
       payments: {
         stripeEnabled: stripePaymentsEnabled(env),
         currency: stripeCurrency(env),
@@ -637,8 +713,13 @@ async function handleApi(request: Request, env: Env, url: URL) {
   if (request.method === "GET" && url.pathname === "/api/me/entitlements") {
     const clientId = url.searchParams.get("client_id") || "";
     if (!clientId) return json({ error: "client_id_required" }, { status: 400 });
-    const rows = await env.DB.prepare("SELECT * FROM entitlements WHERE client_id = ? ORDER BY created_at DESC").bind(clientId).all();
-    return json({ entitlements: rows.results });
+    try {
+      const rows = await env.DB.prepare("SELECT * FROM entitlements WHERE client_id = ? ORDER BY created_at DESC").bind(clientId).all();
+      return json({ entitlements: rows.results });
+    } catch (err) {
+      if (isMissingTableError(err)) return setupRequiredResponse();
+      throw err;
+    }
   }
 
   if (request.method === "GET" && url.pathname === "/api/me/reports") {
@@ -965,12 +1046,13 @@ async function handleApi(request: Request, env: Env, url: URL) {
         }
       } catch (err) {
         status = "failed";
-        error = err instanceof Error ? err.message : "image generation failed";
+        const rawError = err instanceof Error ? err.message : "image generation failed";
+        error = userFacingGenerationError(err);
         console.error("[reports/generate] image pipeline failed", {
           reportId,
           clientId,
           rightKey,
-          error,
+          error: rawError,
         });
       }
       summaryImageKey = coverImageKey || reportImageKey;
@@ -999,8 +1081,10 @@ async function handleApi(request: Request, env: Env, url: URL) {
         xhs_summary_image_url: summaryImageUrl,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "report_generation_failed";
-      console.error("[reports/generate] unexpected failure", { reportId, message });
+      if (isMissingTableError(err)) return setupRequiredResponse();
+      const rawMessage = err instanceof Error ? err.message : "report_generation_failed";
+      const message = userFacingGenerationError(err);
+      console.error("[reports/generate] unexpected failure", { reportId, message: rawMessage });
       return json({
         report_id: reportId,
         status: "failed",
@@ -1045,9 +1129,16 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
-      const response = await handleApi(request, env, url);
-      if (response) return response;
-      return json({ error: "not_found" }, { status: 404 });
+      try {
+        const response = await handleApi(request, env, url);
+        if (response) return response;
+        return json({ error: "not_found" }, { status: 404 });
+      } catch (err) {
+        if (isMissingTableError(err)) return setupRequiredResponse();
+        const message = err instanceof Error ? err.message : "internal_error";
+        console.error("[api] unhandled error", { path: url.pathname, message });
+        return json({ error: "internal_error", message: "服务暂时不可用，请稍后重试。" }, { status: 500 });
+      }
     }
     return env.ASSETS.fetch(request);
   },
