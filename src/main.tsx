@@ -1080,7 +1080,7 @@ function startGenerate() {
   const page = (() => {
     switch (state.route) {
       case "purchase": return <PurchasePage products={products} nav={nav} />;
-      case "success": return <SuccessRedirectPage nav={nav} />;
+      case "success": return <SuccessRedirectPage state={state} setState={setState} nav={nav} />;
       case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
@@ -1318,11 +1318,41 @@ function PageHeader({
   );
 }
 
-function SuccessRedirectPage({ nav }: { nav: (r: Route) => void }) {
+function SuccessRedirectPage({
+  state,
+  setState,
+  nav,
+}: {
+  state: AppState;
+  setState: React.Dispatch<React.SetStateAction<AppState>>;
+  nav: (r: Route) => void;
+}) {
   useEffect(() => {
-    nav("select");
-  }, [nav]);
-  return null;
+    let cancelled = false;
+    const syncRights = async () => {
+      try {
+        const response = await fetch(`/api/me/entitlements?client_id=${encodeURIComponent(state.clientId)}`);
+        const data = await response.json().catch(() => ({} as { entitlements?: Array<{ topic_remaining?: number; comprehensive_remaining?: number }> }));
+        if (response.ok && Array.isArray(data.entitlements)) {
+          const entitlements = data.entitlements as Array<{ topic_remaining?: number; comprehensive_remaining?: number }>;
+          const rights = entitlements.reduce((acc: { topic: number; comprehensive: number }, item) => ({
+            topic: acc.topic + Number(item.topic_remaining || 0),
+            comprehensive: acc.comprehensive + Number(item.comprehensive_remaining || 0),
+          }), { topic: 0, comprehensive: 0 });
+          if (!cancelled) {
+            setState((s) => ({ ...s, rights }));
+          }
+        }
+      } finally {
+        if (!cancelled) nav("select");
+      }
+    };
+    void syncRights();
+    return () => {
+      cancelled = true;
+    };
+  }, [nav, setState, state.clientId]);
+  return <main className="page success-page" aria-live="polite">支付成功，正在更新权益...</main>;
 }
 
 function RightsPills({ rights, showComprehensiveReport = true }: { rights: Rights; showComprehensiveReport?: boolean }) {

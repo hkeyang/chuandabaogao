@@ -2007,6 +2007,14 @@ body {
   color: #d6c5cc;
 }
 
+.success-page {
+  min-height: calc(100vh - 120px);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 @media (max-width: 430px) {
   .app-shell {
     max-width: 100vw;
