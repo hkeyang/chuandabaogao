@@ -2604,18 +2604,22 @@ function PackageGlyph({ kind }: { kind: PaywallPackage["icon"] }) {
 
 function WechatPayIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M9.2 3.5c3.9 0 7 2.4 7 5.4 0 2.9-3.1 5.4-7 5.4-.4 0-.9 0-1.3-.1L4.8 16l.9-2.8C4.5 12.2 3.6 10.9 3.6 8.9c0-3 3.1-5.4 5.6-5.4Z" fill="currentColor" opacity=".18" />
-      <path d="M10.2 6.2h3.4v1.1h-1.1l1.1 1.6h-1.4l-.8-1.2-.8 1.2H9.2l1.1-1.6H9.2V6.2Zm-1.6 5.4c-.4 0-.8.3-.8.7s.4.7.8.7.8-.3.8-.7-.4-.7-.8-.7Zm3.6 0c-.4 0-.8.3-.8.7s.4.7.8.7.8-.3.8-.7-.4-.7-.8-.7Z" fill="currentColor" />
+    <svg className="pay-brand-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <circle cx="16" cy="16" r="15" fill="#07C160" />
+      <path d="M13.2 10.1c-4.4 0-7.9 2.8-7.9 6.2 0 1.9 1.1 3.6 2.9 4.8l-.7 2.5 3.1-1.5c.8.2 1.7.3 2.6.3 4.4 0 7.9-2.8 7.9-6.2s-3.5-6.1-7.9-6.1Z" fill="#fff" />
+      <path d="M18.9 14.3c4 .4 7 2.9 7 6 0 1.8-1 3.4-2.7 4.6l.6 2.2-2.8-1.3c-.7.2-1.5.3-2.3.3-3.2 0-6-1.5-7.2-3.7.6.1 1.1.2 1.8.2 4.9 0 8.7-3 8.7-6.4 0-.7-.2-1.3-.5-1.9-.8-.1-1.6-.1-2.6 0Z" fill="#fff" opacity=".78" />
+      <circle cx="10.8" cy="15.6" r="1.1" fill="#07C160" />
+      <circle cx="15.8" cy="15.6" r="1.1" fill="#07C160" />
     </svg>
   );
 }
 
 function AlipayPayIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <rect x="5" y="6.5" width="14" height="11" rx="3" fill="currentColor" opacity=".15" />
-      <path d="M8 6.8h8.1v1.8H13l2.9 6.2H14l-.8-1.8H9.7l-.7 1.8H7.2l2.8-6.2H8V6.8Zm2.3 4.6h2.6L12 8.9l-1.7 2.5Z" fill="currentColor" />
+    <svg className="pay-brand-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <rect x="2" y="2" width="28" height="28" rx="7" fill="#1677FF" />
+      <path d="M9.1 9.2h5.4V6.7h3v2.5h5.6v2.6h-5.6v2.5h4.7v2.5h-2.1c-.5 1.8-1.3 3.3-2.4 4.6 1.7.8 3.8 1.5 6.3 2.1l-1.6 2.7c-2.8-.8-5.1-1.8-7-3-1.9 1.3-4.4 2.3-7.5 3l-1.4-2.5c2.7-.6 4.9-1.4 6.5-2.4-1.1-1.1-2-2.3-2.7-3.7h3.2c.5.8 1.1 1.5 1.9 2.2.7-.8 1.3-1.8 1.7-3H7.9v-2.5h6.6v-2.5H9.1V9.2Z" fill="#fff" />
+      <path d="M7.4 24.9c5.8-.8 11.1-2.9 16.7-6.1l1.1 2.2c-5.1 3.3-10.5 5.6-16.8 6.4l-1-2.5Z" fill="#fff" opacity=".9" />
     </svg>
   );
 }

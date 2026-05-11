@@ -34,6 +34,7 @@ interface Env {
   ALIYUN_SMS_SIGN_NAME?: string;
   ALIYUN_SMS_TEMPLATE_CODE?: string;
   ALIYUN_SMS_ENDPOINT?: string;
+  ALIYUN_SMS_PROVIDER?: string;
   AUTH_DEV_CODE?: string;
   ADMIN_PASSWORD_SECRET: string;
   COUPON_VALID_DAYS: string;
@@ -625,37 +626,66 @@ async function hmacSha1Base64(secret: string, text: string) {
   return btoa(binary);
 }
 
-async function sendAliyunSms(env: Env, phone: string, code: string) {
-  if (!env.ALIYUN_ACCESS_KEY_ID || !env.ALIYUN_ACCESS_KEY_SECRET || !env.ALIYUN_SMS_SIGN_NAME || !env.ALIYUN_SMS_TEMPLATE_CODE) {
-    if (env.AUTH_DEV_CODE) return { sent: false, provider: "dev" };
-    throw new Error("sms_provider_not_configured");
-  }
-  const endpoint = env.ALIYUN_SMS_ENDPOINT || "https://dysmsapi.aliyuncs.com/";
-  const params: Record<string, string> = {
-    AccessKeyId: env.ALIYUN_ACCESS_KEY_ID,
-    Action: "SendSms",
-    Format: "JSON",
-    PhoneNumbers: phone.replace(/^\+86/, ""),
-    RegionId: "cn-hangzhou",
-    SignName: env.ALIYUN_SMS_SIGN_NAME,
-    SignatureMethod: "HMAC-SHA1",
-    SignatureNonce: crypto.randomUUID(),
-    SignatureVersion: "1.0",
-    TemplateCode: env.ALIYUN_SMS_TEMPLATE_CODE,
-    TemplateParam: JSON.stringify({ code }),
-    Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    Version: "2017-05-25",
-  };
+async function callAliyunRpc(endpoint: string, secret: string, params: Record<string, string>) {
   const canonical = Object.keys(params).sort().map((key) => `${rfc3986(key)}=${rfc3986(params[key])}`).join("&");
   const stringToSign = `GET&%2F&${rfc3986(canonical)}`;
-  const signature = await hmacSha1Base64(`${env.ALIYUN_ACCESS_KEY_SECRET}&`, stringToSign);
+  const signature = await hmacSha1Base64(`${secret}&`, stringToSign);
   const url = `${endpoint}?Signature=${rfc3986(signature)}&${canonical}`;
   const response = await fetch(url);
   const payload = await response.json().catch(() => ({})) as Json;
   if (!response.ok || String(payload.Code || "") !== "OK") {
     throw new Error(String(payload.Message || payload.Code || `aliyun_sms_${response.status}`));
   }
-  return { sent: true, provider: "aliyun" };
+  return payload;
+}
+
+async function sendAliyunSms(env: Env, phone: string, code: string) {
+  if (!env.ALIYUN_ACCESS_KEY_ID || !env.ALIYUN_ACCESS_KEY_SECRET || !env.ALIYUN_SMS_SIGN_NAME || !env.ALIYUN_SMS_TEMPLATE_CODE) {
+    if (env.AUTH_DEV_CODE) return { sent: false, provider: "dev", code };
+    throw new Error("sms_provider_not_configured");
+  }
+  const provider = (env.ALIYUN_SMS_PROVIDER || "dysms").toLowerCase();
+  const commonParams: Record<string, string> = {
+    AccessKeyId: env.ALIYUN_ACCESS_KEY_ID,
+    Format: "JSON",
+    RegionId: "cn-hangzhou",
+    SignatureMethod: "HMAC-SHA1",
+    SignatureNonce: crypto.randomUUID(),
+    SignatureVersion: "1.0",
+    Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    Version: "2017-05-25",
+  };
+  if (provider === "dypns") {
+    const payload = await callAliyunRpc(env.ALIYUN_SMS_ENDPOINT || "https://dypnsapi.aliyuncs.com/", env.ALIYUN_ACCESS_KEY_SECRET, {
+      ...commonParams,
+      Action: "SendSmsVerifyCode",
+      AutoRetry: "1",
+      CodeLength: "6",
+      CodeType: "1",
+      CountryCode: "86",
+      DuplicatePolicy: "1",
+      Interval: "60",
+      PhoneNumber: phone.replace(/^\+86/, ""),
+      ReturnVerifyCode: "true",
+      SignName: env.ALIYUN_SMS_SIGN_NAME,
+      TemplateCode: env.ALIYUN_SMS_TEMPLATE_CODE,
+      TemplateParam: JSON.stringify({ code: "##code##", min: "5" }),
+      ValidTime: "300",
+    });
+    const model = (payload.Model || {}) as Json;
+    const verifyCode = String(model.VerifyCode || "");
+    if (!/^\d{4,8}$/.test(verifyCode)) throw new Error("aliyun_sms_code_unavailable");
+    return { sent: true, provider: "aliyun-dypns", code: verifyCode };
+  }
+  await callAliyunRpc(env.ALIYUN_SMS_ENDPOINT || "https://dysmsapi.aliyuncs.com/", env.ALIYUN_ACCESS_KEY_SECRET, {
+    ...commonParams,
+    Action: "SendSms",
+    PhoneNumbers: phone.replace(/^\+86/, ""),
+    SignName: env.ALIYUN_SMS_SIGN_NAME,
+    TemplateCode: env.ALIYUN_SMS_TEMPLATE_CODE,
+    TemplateParam: JSON.stringify({ code }),
+  });
+  return { sent: true, provider: "aliyun", code };
 }
 
 async function requireUser(request: Request, env: Env): Promise<AuthUser | null> {
@@ -1006,10 +1036,7 @@ async function handleApi(request: Request, env: Env, url: URL) {
     if (!/^\+861\d{10}$/.test(phone)) return json({ error: "invalid_phone", message: "请输入有效的中国大陆手机号" }, { status: 400 });
     const code = env.AUTH_DEV_CODE || randomDigits(6);
     const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
-    await env.DB.prepare("INSERT INTO sms_codes (id, phone, code_hash, purpose, status, attempts, expires_at, created_at) VALUES (?, ?, ?, 'login', 'pending', 0, ?, ?)")
-      .bind(randomId("sms"), phone, await hash(code), expiresAt, now())
-      .run();
-    let sms: { sent: boolean; provider: string };
+    let sms: { sent: boolean; provider: string; code: string };
     try {
       sms = await sendAliyunSms(env, phone, code);
     } catch (error) {
@@ -1020,13 +1047,16 @@ async function handleApi(request: Request, env: Env, url: URL) {
         detail,
       }, { status: 503 });
     }
+    await env.DB.prepare("INSERT INTO sms_codes (id, phone, code_hash, purpose, status, attempts, expires_at, created_at) VALUES (?, ?, ?, 'login', 'pending', 0, ?, ?)")
+      .bind(randomId("sms"), phone, await hash(sms.code), expiresAt, now())
+      .run();
     await audit(env, clientId || "guest", "auth.sms_send", `${maskPhone(phone)} ${sms.provider}`, request).catch(() => undefined);
     return json({
       ok: true,
       phone: maskPhone(phone),
       expires_at: expiresAt,
       provider: sms.provider,
-      dev_code: sms.provider === "dev" ? code : undefined,
+      dev_code: sms.provider === "dev" ? sms.code : undefined,
     });
   }
 
