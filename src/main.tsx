@@ -2251,7 +2251,6 @@ function PreAnalysisPage({
     if (!state.preAnalysisError && !state.isPreAnalyzing && !isCurrentPreAnalysis(state.preAnalysis, type.id)) onAnalyze();
   }, [state.preAnalysis, state.preAnalysisError, state.isPreAnalyzing, type.id]);
   const analysis = state.preAnalysis?.reportType === type.id ? state.preAnalysis : undefined;
-  const recommendedProduct = products.find((item) => item.id === (analysis?.recommendedProductId || (type.id === "comprehensive" ? "full" : "single")));
   const hasRight = state.rights[type.rightKey] > 0;
   return (
     <main className="page preanalysis-page">
@@ -2303,11 +2302,6 @@ function PreAnalysisPage({
       )}
 
       <section className="preanalysis-pay-card">
-        <div>
-          <span className="preanalysis-pay-card__eyebrow">下一步</span>
-          <h2>{hasRight ? "使用已购权益生成完整报告" : `生成完整报告${recommendedProduct ? ` ¥${recommendedProduct.price}` : ""}`}</h2>
-          <p>{hasRight ? "登录并确认本人照片后开始生成，成功后才扣权益。" : "先登录并完成支付，支付成功后再确认生成。"}</p>
-        </div>
         <button
           className="confirm-primary-btn"
           onClick={() => {
@@ -2389,16 +2383,16 @@ function PayPage({
         <div className="payment-buttons pay-page-buttons">
           <button type="button" className="pay-button wechat" disabled={!canPay || paying?.packageId === selected.id} onClick={() => onCheckout(selected, "wechat")}>
             <WechatPayIcon />
-            {isPaying(paying, selected.id, "wechat") ? "跳转中..." : "微信支付"}
+            {isPaying(paying, selected.id, "wechat") ? "正在打开支付页..." : "微信支付"}
           </button>
           <button type="button" className="pay-button alipay" disabled={!canPay || paying?.packageId === selected.id} onClick={() => onCheckout(selected, "alipay")}>
             <AlipayPayIcon />
-            {isPaying(paying, selected.id, "alipay") ? "跳转中..." : "支付宝支付"}
+            {isPaying(paying, selected.id, "alipay") ? "正在打开支付页..." : "支付宝支付"}
           </button>
         </div>
         <footer>
           <ShieldCheck size={16} />
-          <span>Stripe 安全托管支付，支付成功后自动回到报告流程。</span>
+          <span>将跳转至 Stripe 安全支付页，按页面提示完成支付宝/微信支付。</span>
         </footer>
       </section>
     </main>
@@ -2422,10 +2416,32 @@ function LoginSheet({
   const [code, setCode] = useState("");
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [smsCooldownSeconds, setSmsCooldownSeconds] = useState(0);
+  const [smsCooldownUntil, setSmsCooldownUntil] = useState(0);
   const [hint, setHint] = useState("登录后，支付权益会保存到手机号。");
+  const isSmsCoolingDown = smsCooldownSeconds > 0 && Date.now() < smsCooldownUntil;
+  const smsButtonLabel = sending
+    ? "发送中"
+    : isSmsCoolingDown
+      ? `已发送 ${smsCooldownSeconds}s`
+      : smsCooldownUntil
+        ? "重新获取"
+        : "获取验证码";
+
+  useEffect(() => {
+    if (!smsCooldownUntil) return;
+    const syncCooldown = () => {
+      const seconds = Math.max(0, Math.ceil((smsCooldownUntil - Date.now()) / 1000));
+      setSmsCooldownSeconds(seconds);
+      if (seconds <= 0) setSmsCooldownUntil(0);
+    };
+    syncCooldown();
+    const timer = window.setInterval(syncCooldown, 250);
+    return () => window.clearInterval(timer);
+  }, [smsCooldownUntil]);
 
   async function sendCode() {
-    if (sending) return;
+    if (sending || isSmsCoolingDown) return;
     setSending(true);
     try {
       const response = await fetch("/api/auth/sms/send", {
@@ -2437,6 +2453,8 @@ function LoginSheet({
       if (!response.ok) throw new Error(data.message || "验证码发送失败");
       const devHint = data.dev_code ? ` 测试验证码：${data.dev_code}` : "";
       setHint(`验证码已发送。${devHint}`);
+      setSmsCooldownUntil(Date.now() + 60_000);
+      setSmsCooldownSeconds(60);
       if (data.dev_code) setCode(data.dev_code);
     } catch (error) {
       const message = error instanceof Error ? error.message : "验证码发送失败";
@@ -2488,7 +2506,7 @@ function LoginSheet({
           <span>验证码</span>
           <div className="login-code-row">
             <input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" placeholder="6 位验证码" />
-            <button type="button" onClick={sendCode} disabled={sending}>{sending ? "发送中" : "获取验证码"}</button>
+            <button type="button" onClick={sendCode} disabled={sending || isSmsCoolingDown} className={isSmsCoolingDown ? "is-cooling" : ""}>{smsButtonLabel}</button>
           </div>
         </label>
         <button className="confirm-primary-btn" type="button" onClick={verifyCode} disabled={verifying}>
@@ -2551,7 +2569,7 @@ function PaywallSheet({
                   disabled={paying?.packageId === item.id}
                 >
                   <WechatPayIcon />
-                  {isPaying(paying, item.id, "wechat") ? "跳转中..." : "微信支付"}
+                  {isPaying(paying, item.id, "wechat") ? "正在打开支付页..." : "微信支付"}
                 </button>
                 <button
                   type="button"
@@ -2560,7 +2578,7 @@ function PaywallSheet({
                   disabled={paying?.packageId === item.id}
                 >
                   <AlipayPayIcon />
-                  {isPaying(paying, item.id, "alipay") ? "跳转中..." : "支付宝支付"}
+                  {isPaying(paying, item.id, "alipay") ? "正在打开支付页..." : "支付宝支付"}
                 </button>
               </div>
             </article>
