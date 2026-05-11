@@ -815,11 +815,17 @@ function localPreAnalysis(input: {
       : `${requirement.title}，建议按「${requirement.tips.join(" / ")}」重新拍一张，完整报告会更准。`,
     recommendedProductId: product,
     sections: [
-      { title: "优先方向", text: reportType.id === "comprehensive" ? "先看完整形象定位，再拆开发型、色彩、穿搭和场景。" : `先生成${reportType.name}，把一个方向看清楚。` },
-      { title: "照片匹配", text: requirement.desc },
-      { title: "付费后生成", text: "预分析不消耗生图成本；点击生成完整报告并完成支付后，才会调用正式生图模型。" },
+      { title: "风格方向", text: `建议围绕「${persona.title}」展开，保留本人原有气质，把${style}和${scene}场景做得更清晰。` },
+      { title: "本次重点", text: reportType.id === "comprehensive" ? "完整报告会同时看发型、色彩、面部状态、穿搭和场景，先给出整体形象定位。" : `完整报告会优先展开${reportType.name}，判断当前照片里最值得优化的细节。` },
+      { title: "生成建议", text: `${requirement.desc} 当前选择的改变幅度是「${change}」，适合先做可执行、不过度的优化方案。` },
     ],
   };
+}
+
+function isCurrentPreAnalysis(analysis: PreAnalysis | undefined, reportTypeId: ReportTypeId) {
+  if (!analysis || analysis.reportType !== reportTypeId) return false;
+  const titles = analysis.sections.map((section) => section.title);
+  return ["风格方向", "本次重点", "生成建议"].every((title) => titles.includes(title));
 }
 
 function App() {
@@ -1947,15 +1953,14 @@ function PreAnalysisPage({
   onOpenPaywall: (reason: string) => void;
 }) {
   useEffect(() => {
-    if (!state.preAnalysis || state.preAnalysis.reportType !== type.id) onAnalyze();
+    if (!isCurrentPreAnalysis(state.preAnalysis, type.id)) onAnalyze();
   }, [state.preAnalysis, type.id]);
   const analysis = state.preAnalysis?.reportType === type.id ? state.preAnalysis : undefined;
   const recommendedProduct = products.find((item) => item.id === (analysis?.recommendedProductId || (type.id === "comprehensive" ? "full" : "single")));
   const hasRight = state.rights[type.rightKey] > 0;
-  const fitLabel = analysis?.photoFit === "warning" ? "建议优化照片" : analysis?.photoFit === "poor" ? "建议重新上传" : "照片基础可用";
   return (
     <main className="page preanalysis-page">
-      <PageHeader title="免费预分析" description="这里不会调用正式生图模型，完整报告会在支付后生成。" onBack={() => nav("preferences")} backLabel="返回偏好" align="left" />
+      <PageHeader title="免费预分析" onBack={() => nav("preferences")} backLabel="返回偏好" align="left" />
 
       <section className="preanalysis-hero">
         <div className="preanalysis-photo">
@@ -1978,16 +1983,7 @@ function PreAnalysisPage({
 
       {analysis && (
         <>
-          <section className={`preanalysis-fit ${analysis.photoFit}`}>
-            <b>{fitLabel}</b>
-            <p>{analysis.photoAdvice}</p>
-          </section>
-
-          <section className="preanalysis-keywords">
-            {analysis.keywords.map((keyword) => <span key={keyword}>{keyword}</span>)}
-          </section>
-
-          <section className="preanalysis-sections">
+          <section className="preanalysis-insights" aria-label="预分析内容">
             {analysis.sections.map((section) => (
               <article key={section.title}>
                 <h3>{section.title}</h3>
@@ -2004,7 +2000,7 @@ function PreAnalysisPage({
         <div>
           <span className="preanalysis-pay-card__eyebrow">下一步</span>
           <h2>{hasRight ? "使用已购权益生成完整报告" : `生成完整报告${recommendedProduct ? ` ¥${recommendedProduct.price}` : ""}`}</h2>
-          <p>{hasRight ? "下一页会再次确认本人照片，生成成功后才扣权益。" : "先完成微信/支付宝支付；支付成功后会回到这里继续生成。"}</p>
+          <p>{hasRight ? "确认本人照片后开始生成，成功后才扣权益。" : "购买成功后会回到本页，重新点击后再生成。"}</p>
         </div>
         <button
           className="confirm-primary-btn"

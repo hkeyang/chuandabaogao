@@ -693,19 +693,20 @@ async function handleApi(request: Request, env: Env, url: URL) {
     const photoCheck = String(input.photo_check_result || "available");
     const fit = photoCheck === "failed" ? "poor" : photoCheck === "warning" ? "warning" : "good";
     const recommendedProductId = reportType === "comprehensive" ? "full" : "single";
+    const label = labels[reportType] || labels.hair;
     return json({
       id: randomId("pa"),
       reportType,
-      title: `${labels[reportType] || labels.hair}预分析`,
-      summary: `当前偏好是「${style} / ${scene} / ${change}」。这一步只生成文字方向，支付后才会调用正式生图模型生成完整报告。`,
-      keywords: reportType === "comprehensive" ? ["完整定位", "多维建议", "可保存长图"] : ["方向明确", "低门槛试用", "可升级多次"],
+      title: `${label}预分析`,
+      summary: `当前偏好是「${style} / ${scene} / ${change}」。预分析先判断方向，完整报告会把建议整理成可保存的高清长图。`,
+      keywords: reportType === "comprehensive" ? ["完整定位", "多维建议", "可保存长图"] : ["方向明确", "贴合场景", "可继续深化"],
       photoFit: fit,
       photoAdvice: requirements[reportType] || requirements.hair,
       recommendedProductId,
       sections: [
-        { title: "推荐生成", text: reportType === "comprehensive" ? "适合直接购买全案探索卡，先得到完整形象定位。" : `适合先生成${labels[reportType] || labels.hair}，看一个方向是否准确。` },
-        { title: "照片要求", text: requirements[reportType] || requirements.hair },
-        { title: "成本控制", text: "预分析不生成图片；只有支付成功并确认生成后，才会调用正式生图接口。" },
+        { title: "风格方向", text: `建议围绕「${style}」和「${scene}」做形象延展，让整体观感更明确、更适合当前使用场景。` },
+        { title: "本次重点", text: reportType === "comprehensive" ? "完整报告会同时看发型、色彩、面部状态、穿搭和场景，先给出整体形象定位。" : `完整报告会优先展开${label}，判断当前照片里最值得优化的细节。` },
+        { title: "生成建议", text: `${requirements[reportType] || requirements.hair} 当前改变幅度是「${change}」，适合输出可执行、不过度的方案。` },
       ],
     });
   }
