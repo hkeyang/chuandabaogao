@@ -16,9 +16,13 @@ wrangler secret put ADMIN_PASSWORD_SECRET
 wrangler secret put OPENAI_API_KEY
 wrangler secret put STRIPE_SECRET_KEY
 wrangler secret put STRIPE_WEBHOOK_SECRET
+wrangler secret put ALIYUN_ACCESS_KEY_ID
+wrangler secret put ALIYUN_ACCESS_KEY_SECRET
 ```
 
 当前生图模型配置为 `gpt-image-2`，接口地址在 `wrangler.toml` 的 `OPENAI_IMAGE_ENDPOINT`。
+预分析文字使用 `OPENAI_PREANALYSIS_MODEL` 和 `OPENAI_RESPONSES_ENDPOINT`，默认走 OpenAI Responses API 的图像输入；生产可配置为兼容网关地址以避免 Worker 出口区域被 OpenAI 官方接口拒绝。
+手机号登录使用阿里云短信，还需要配置 `ALIYUN_SMS_SIGN_NAME` 和 `ALIYUN_SMS_TEMPLATE_CODE`。
 
 ## 2.1 Stripe 预埋状态
 

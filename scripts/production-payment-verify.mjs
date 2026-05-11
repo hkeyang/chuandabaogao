@@ -33,6 +33,8 @@ const allChannels = [
 ];
 const channels = allChannels.filter((item) => requestedChannels.includes(item.channel));
 assert(channels.length > 0, "No payment channels selected", { requestedChannels });
+const verifyPhone = process.env.PAYMENT_VERIFY_PHONE || "13900000001";
+const verifyClientId = `verify_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 const chromeCandidates = [
   process.env.CHROME_BIN,
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -134,16 +136,48 @@ async function verifyReadiness() {
   };
 }
 
-async function openPaywall(page, channel) {
-  await page.goto(`${baseUrl}/#/confirm`, { waitUntil: "domcontentloaded" });
+async function loginForVerification() {
+  const send = await requestJson("/api/auth/sms/send", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: verifyPhone, client_id: verifyClientId }),
+  });
+  assert(send.ok, "SMS login code request failed", send);
+  const code = process.env.PAYMENT_VERIFY_SMS_CODE || send.data?.dev_code;
+  assert(code, "SMS code unavailable; set PAYMENT_VERIFY_SMS_CODE for production SMS verification", {
+    provider: send.data?.provider,
+    phone: send.data?.phone,
+  });
+  const verify = await requestJson("/api/auth/sms/verify", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: verifyPhone, code, client_id: verifyClientId }),
+  });
+  assert(verify.ok && verify.data?.token, "SMS login verification failed", verify);
+  const me = await requestJson("/api/me", {
+    headers: { authorization: `Bearer ${verify.data.token}` },
+  });
+  assert(me.ok && me.data?.user?.id, "Logged-in /api/me check failed", me);
+  return {
+    token: verify.data.token,
+    user: me.data.user,
+    rights: me.data.rights,
+    provider: send.data?.provider,
+  };
+}
+
+async function openPayPage(page, channel, auth) {
+  await page.addInitScript(({ token }) => {
+    localStorage.setItem("aisea-auth-token-v1", token);
+  }, { token: auth.token });
+  await page.goto(`${baseUrl}/#/pay`, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
-  await page.getByText("我确认上传的是本人照片").click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /选择报告套餐|选择套餐并支付/ }).click({ timeout: 15_000 });
-  await page.locator(".paywall-sheet").waitFor({ state: "visible", timeout: 15_000 });
-  const paywallShot = await screenshot(page, `${channel.channel}-paywall`);
-  const packageCard = page.locator(".package-card").nth(packageConfig.cardIndex);
-  await expectText(packageCard, packageConfig.title);
-  return { paywallShot, packageCard };
+  await page.getByText("当前账号").waitFor({ state: "visible", timeout: 15_000 });
+  const option = page.locator(".pay-package-option").nth(packageConfig.cardIndex);
+  await option.click({ timeout: 15_000 });
+  await expectText(page.locator(".pay-detail-card"), packageConfig.title);
+  const paywallShot = await screenshot(page, `${channel.channel}-pay-page`);
+  return { paywallShot, packageCard: page.locator(".pay-detail-card") };
 }
 
 async function expectText(locator, text) {
@@ -151,7 +185,7 @@ async function expectText(locator, text) {
   assert(content?.includes(text), `Expected UI text not found: ${text}`, { text: content || "" });
 }
 
-async function verifyChannel(browser, channel) {
+async function verifyChannel(browser, channel, auth) {
   const context = await browser.newContext({
     viewport: { width: 390, height: 1200 },
     locale: "zh-CN",
@@ -173,7 +207,7 @@ async function verifyChannel(browser, channel) {
   });
 
   try {
-    const { paywallShot: paywallScreenshot, packageCard } = await openPaywall(page, channel);
+    const { paywallShot: paywallScreenshot, packageCard } = await openPayPage(page, channel, auth);
     const checkoutResponsePromise = page.waitForResponse((response) => (
       response.url().includes("/api/orders/checkout") && response.request().method() === "POST"
     ), { timeout: 30_000 });
@@ -295,6 +329,7 @@ const report = {
     productIds: Object.fromEntries(channels.map((item) => [item.channel, item.productId])),
   },
   readiness: null,
+  auth: null,
   channels: [],
   failures: [],
   status: "running",
@@ -302,6 +337,12 @@ const report = {
 
 try {
   report.readiness = await verifyReadiness();
+  const auth = await loginForVerification();
+  report.auth = {
+    user: auth.user,
+    rights: auth.rights,
+    provider: auth.provider,
+  };
   const executablePath = await findChrome();
   const browser = await chromium.launch({
     headless: true,
@@ -318,7 +359,7 @@ try {
 
     for (const channel of channels) {
       try {
-        report.channels.push(await verifyChannel(browser, channel));
+        report.channels.push(await verifyChannel(browser, channel, auth));
       } catch (error) {
         report.failures.push({
           channel: channel.channel,

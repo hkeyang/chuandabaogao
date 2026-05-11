@@ -1784,6 +1784,27 @@ body {
   margin-bottom: 88px;
 }
 
+.preanalysis-error {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #ffd1df;
+  border-radius: 18px;
+  background: #fff7fb;
+}
+
+.preanalysis-error h3 {
+  margin: 0;
+  font-size: 19px;
+  color: #2a171d;
+}
+
+.preanalysis-error p {
+  margin: 0;
+  color: #7b6870;
+  line-height: 1.6;
+}
+
 .preanalysis-privacy-row {
   margin-top: 2px;
 }
@@ -2005,6 +2026,197 @@ body {
 
 .paywall-divider {
   color: #d6c5cc;
+}
+
+.pay-page {
+  display: grid;
+  gap: 16px;
+}
+
+.pay-account-card,
+.pay-detail-card,
+.pay-package-option {
+  border: 1px solid #ffd5e2;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(255, 80, 132, .07);
+}
+
+.pay-account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+}
+
+.pay-account-card span,
+.pay-package-option small {
+  display: block;
+  color: #8a737b;
+  font-size: 13px;
+}
+
+.pay-account-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #24151a;
+  font-size: 20px;
+}
+
+.pay-account-card p {
+  margin: 6px 0 0;
+  color: #7d6b72;
+  line-height: 1.5;
+}
+
+.pay-package-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pay-package-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  text-align: left;
+}
+
+.pay-package-option.selected {
+  border-color: #ff5791;
+  background: #fff4f8;
+}
+
+.pay-package-option b {
+  display: block;
+  color: #26171c;
+  font-size: 17px;
+}
+
+.pay-package-option strong {
+  color: #ff2f7d;
+  font-size: 24px;
+}
+
+.pay-detail-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  margin-bottom: 80px;
+}
+
+.pay-detail-card h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #24151a;
+}
+
+.pay-detail-card p {
+  margin: 0;
+  color: #7f6d74;
+  line-height: 1.6;
+}
+
+.pay-rights-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pay-rights-row span {
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff5f9;
+  color: #7d6870;
+}
+
+.pay-rights-row b {
+  color: #ff2f7d;
+  font-size: 20px;
+}
+
+.pay-error {
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff0f2;
+  color: #c42b48 !important;
+  font-weight: 700;
+}
+
+.pay-page-buttons {
+  margin-top: 2px;
+}
+
+.pay-detail-card footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #7b6d73;
+  font-size: 13px;
+}
+
+.login-sheet {
+  position: relative;
+  width: min(100%, 430px);
+  padding: 24px 18px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 28px 28px 0 0;
+  background: #fff;
+  box-shadow: 0 -24px 70px rgba(74, 40, 50, .2);
+}
+
+.login-sheet header {
+  padding-right: 48px;
+}
+
+.login-sheet header svg {
+  color: #ff3f86;
+}
+
+.login-sheet h2 {
+  margin: 8px 0 0;
+  font-size: 28px;
+  color: #24151a;
+}
+
+.login-sheet p {
+  margin: 8px 0 18px;
+  color: #7e6d74;
+  line-height: 1.6;
+}
+
+.login-sheet label {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: #6f5d65;
+  font-weight: 800;
+}
+
+.login-sheet input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #ffd0df;
+  border-radius: 12px;
+  padding: 0 12px;
+  color: #24151a;
+  font-size: 16px;
+  background: #fff9fb;
+}
+
+.login-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 10px;
+}
+
+.login-code-row button {
+  border: 0;
+  border-radius: 12px;
+  background: #ff3f86;
+  color: #fff;
+  font-weight: 900;
 }
 
 .success-page {

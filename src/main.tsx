@@ -32,11 +32,13 @@ import "./styles.css";
 import { ASSETS, DEFAULT_ADMIN, DEFAULT_PRODUCTS, PAYWALL_PACKAGES, PERSONAS, REPORT_TYPES, PREFERENCE_ASSETS, preferenceSections } from "./data";
 import type { AdminState, AdminUser, AuditLog, Coupon, PayChannel, PaywallPackage, PersonaId, PreferenceState, Product, ProductId, ReportType, ReportTypeId, Rights, UserReport } from "./types";
 
-type Route = "home" | "purchase" | "success" | "select" | "upload" | "preferences" | "preanalysis" | "confirm" | "progress" | "result" | "admin";
+type Route = "home" | "purchase" | "pay" | "success" | "select" | "upload" | "preferences" | "preanalysis" | "confirm" | "progress" | "result" | "admin";
 type Toast = { id: number; text: string };
 type PaywallState = { open: boolean; reason?: string };
 type PayingState = { packageId: string; channel: PayChannel } | null;
-const ALLOWED_ROUTES: Route[] = ["home", "purchase", "success", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
+type AuthUser = { id: string; phone: string; masked_phone?: string; display_name: string };
+type AuthRequiredReason = "pay" | "generate" | null;
+const ALLOWED_ROUTES: Route[] = ["home", "purchase", "pay", "success", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
 type PreAnalysis = {
   id: string;
   reportType: ReportTypeId;
@@ -47,6 +49,7 @@ type PreAnalysis = {
   photoAdvice: string;
   recommendedProductId: ProductId;
   sections: Array<{ title: string; text: string }>;
+  aiGenerated?: boolean;
 };
 
 const PAYMENT_ERROR_MAP: Record<string, string> = {
@@ -346,10 +349,16 @@ interface AppState {
   preAnalysis?: PreAnalysis;
   isPreAnalyzing: boolean;
   preAnalysisError?: string;
+  user?: AuthUser;
+  authToken: string;
+  authRequiredReason: AuthRequiredReason;
+  selectedPayPackageId: string;
+  payError?: string;
 }
 
 const LS_KEY = "aisea-react-state-v1";
 const CLIENT_ID_KEY = "aisea-client-id-v1";
+const AUTH_TOKEN_KEY = "aisea-auth-token-v1";
 const ADMIN_PASSWORD = "AISea@2026";
 const couponAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const DEMO_COUPON_PRODUCTS: Record<string, ProductId> = {
@@ -443,6 +452,11 @@ function loadState(): AppState {
     preAnalysis: undefined,
     isPreAnalyzing: false,
     preAnalysisError: undefined,
+    user: undefined,
+    authToken: localStorage.getItem(AUTH_TOKEN_KEY) || "",
+    authRequiredReason: null,
+    selectedPayPackageId: "single_topic",
+    payError: undefined,
   };
   if (params.get("demo") === "full") {
     const product = DEFAULT_PRODUCTS.find((item) => item.id === "full");
@@ -491,6 +505,11 @@ function loadState(): AppState {
       preAnalysis: saved.preAnalysis,
       isPreAnalyzing: Boolean(saved.isPreAnalyzing),
       preAnalysisError: typeof saved.preAnalysisError === "string" ? saved.preAnalysisError : undefined,
+      user: saved.user && typeof saved.user === "object" ? saved.user : undefined,
+      authToken: localStorage.getItem(AUTH_TOKEN_KEY) || (typeof saved.authToken === "string" ? saved.authToken : ""),
+      authRequiredReason: null,
+      selectedPayPackageId: typeof saved.selectedPayPackageId === "string" ? saved.selectedPayPackageId : fallback.selectedPayPackageId,
+      payError: undefined,
     } : fallback;
   } catch {
     return fallback;
@@ -825,7 +844,7 @@ function localPreAnalysis(input: {
 function isCurrentPreAnalysis(analysis: PreAnalysis | undefined, reportTypeId: ReportTypeId) {
   if (!analysis || analysis.reportType !== reportTypeId) return false;
   const titles = analysis.sections.map((section) => section.title);
-  return ["风格方向", "本次重点", "生成建议"].every((title) => titles.includes(title));
+  return ["整体判断", "当前优势", "优先优化"].every((title) => titles.includes(title));
 }
 
 function App() {
@@ -837,8 +856,10 @@ function App() {
   const generationSeqRef = useRef(0);
 
   useEffect(() => {
-    const { photoDataUrl: _photoDataUrl, ...serializableState } = state;
+    const { photoDataUrl: _photoDataUrl, authToken: _authToken, ...serializableState } = state;
     localStorage.setItem(LS_KEY, JSON.stringify(serializableState));
+    if (state.authToken) localStorage.setItem(AUTH_TOKEN_KEY, state.authToken);
+    else localStorage.removeItem(AUTH_TOKEN_KEY);
   }, [state]);
 
   useEffect(() => {
@@ -860,7 +881,29 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if (!state.authToken || state.user) return;
+    void syncMe(state.authToken);
+  }, [state.authToken, state.user]);
+
   const showToast = (text: string) => setToast({ id: Date.now(), text });
+  const authHeaders = (): Record<string, string> => state.authToken ? { authorization: `Bearer ${state.authToken}` } : {};
+  async function syncMe(token = state.authToken) {
+    if (!token) return;
+    const response = await fetch("/api/me", { headers: { authorization: `Bearer ${token}` } });
+    const data = await response.json().catch(() => ({} as { user?: AuthUser; rights?: Rights }));
+    if (!response.ok) {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      setState((s) => ({ ...s, authToken: "", user: undefined, rights: { topic: 0, comprehensive: 0 } }));
+      return;
+    }
+    setState((s) => ({
+      ...s,
+      user: data.user,
+      authToken: token,
+      rights: data.rights || s.rights,
+    }));
+  }
   const nav = (route: Route) => {
     window.location.hash = `/${route}`;
     setState((s) => ({ ...s, route }));
@@ -908,7 +951,11 @@ function startGenerate() {
   }
   if (!state.privacyAccepted) return showToast("请先勾选本人照片确认");
   if (state.rights[reportType.rightKey] <= 0) {
-    setPaywall({ open: true, reason: reportType.rightKey === "comprehensive" ? "综合报告需要全案探索卡权益" : "生成完整专题前需要先完成支付" });
+    if (!state.user || !state.authToken) {
+      setState((s) => ({ ...s, authRequiredReason: "generate" }));
+      return;
+    }
+    nav("pay");
     return;
   }
     generationSeqRef.current += 1;
@@ -931,23 +978,23 @@ function startGenerate() {
           change_level: state.preferences.changeIntensity,
           photo_check_result: state.photoCheckResult,
           photo_name: state.photoName,
+          user_photo_data_url: state.photoDataUrl,
+          user_photo_url: state.photoDataUrl || state.photoUrl,
         }),
       });
       const data = await response.json().catch(() => ({} as Partial<PreAnalysis> & { error?: string; message?: string }));
       if (!response.ok) throw new Error(String(data.message || data.error || "预分析暂时不可用"));
       const next: PreAnalysis = {
-        ...localPreAnalysis({ reportType: type, preferences: state.preferences, photoCheckResult: state.photoCheckResult }),
         ...data,
         reportType: type.id,
-      };
+      } as PreAnalysis;
       setState((s) => ({ ...s, preAnalysis: next, isPreAnalyzing: false, preAnalysisError: undefined }));
     } catch (error) {
-      const fallback = localPreAnalysis({ reportType: type, preferences: state.preferences, photoCheckResult: state.photoCheckResult });
       setState((s) => ({
         ...s,
-        preAnalysis: fallback,
+        preAnalysis: undefined,
         isPreAnalyzing: false,
-        preAnalysisError: error instanceof Error ? error.message : "已使用本地预分析模板",
+        preAnalysisError: error instanceof Error ? error.message : "预分析暂时不可用，请重试",
       }));
     }
   }
@@ -959,17 +1006,24 @@ function startGenerate() {
     }
     const productId = item.productIds[channel];
     if (!productId) return showToast("当前套餐暂不可购买，请稍后重试");
+    if (!state.user || !state.authToken) {
+      setState((s) => ({ ...s, authRequiredReason: "pay", selectedPayPackageId: item.id }));
+      return;
+    }
     try {
       payingLockRef.current = { packageId: item.id, channel };
       setPaying({ packageId: item.id, channel });
+      setState((s) => ({ ...s, payError: undefined }));
       const response = await fetch("/api/orders/checkout", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           package_id: item.id,
           product_id: productId,
           channel,
           client_id: state.clientId,
+          user_id: state.user.id,
+          preanalysis_id: state.preAnalysis?.id,
           report_type: state.reportType,
           source: "report_unlock_modal",
         }),
@@ -981,7 +1035,9 @@ function startGenerate() {
       }
       window.location.href = checkoutUrl;
     } catch (error) {
-      showToast(getPaymentErrorMessage(error));
+      const message = getPaymentErrorMessage(error);
+      setState((s) => ({ ...s, payError: message }));
+      showToast(message);
     } finally {
       payingLockRef.current = null;
       setPaying(null);
@@ -1011,7 +1067,7 @@ function startGenerate() {
         const response = await fetch("/api/reports/generate", {
           method: "POST",
           signal: controller.signal,
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             client_id: state.clientId,
             report_type: type.id,
@@ -1104,12 +1160,19 @@ function startGenerate() {
   const page = (() => {
     switch (state.route) {
       case "purchase": return <PurchasePage products={products} nav={nav} />;
+      case "pay": return <PayPage state={state} setState={setState} paying={paying} products={products} onCheckout={startCheckout} nav={nav} />;
       case "success": return <SuccessRedirectPage state={state} setState={setState} nav={nav} />;
       case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
-      case "preanalysis": return <PreAnalysisPage state={state} type={reportType} products={products} nav={nav} onAnalyze={createPreAnalysis} onOpenPaywall={(reason) => setPaywall({ open: true, reason })} />;
-      case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} onOpenPaywall={(reason) => setPaywall({ open: true, reason })} />;
+      case "preanalysis": return <PreAnalysisPage state={state} type={reportType} products={products} nav={nav} onAnalyze={createPreAnalysis} onNeedPayment={() => {
+        if (!state.user || !state.authToken) setState((s) => ({ ...s, authRequiredReason: "pay" }));
+        else nav("pay");
+      }} />;
+      case "confirm": return <ConfirmPage state={state} setState={setState} type={reportType} nav={nav} startGenerate={startGenerate} onNeedPayment={() => {
+        if (!state.user || !state.authToken) setState((s) => ({ ...s, authRequiredReason: "generate" }));
+        else nav("pay");
+      }} />;
       case "progress": return <ProgressPage progress={state.progress} hasReport={!state.isGenerating && state.reports.length > 0} error={state.generationError} nav={nav} showToast={showToast} />;
       case "result": return <ResultPage state={state} showComprehensiveReport={showComprehensiveReport} nav={nav} showToast={showToast} />;
       case "admin": return <AdminPage state={state} setState={setState} updateAdmin={updateAdmin} showToast={showToast} />;
@@ -1121,6 +1184,11 @@ function startGenerate() {
     <>
       <Shell state={state} nav={nav}>{page}</Shell>
       {paywall.open && <PaywallSheet paying={paying} reason={paywall.reason} onClose={() => setPaywall({ open: false })} onCheckout={startCheckout} />}
+      {state.authRequiredReason && <LoginSheet state={state} setState={setState} onAuthed={(token) => {
+        void syncMe(token);
+        setState((s) => ({ ...s, authRequiredReason: null, route: s.authRequiredReason === "generate" || s.authRequiredReason === "pay" ? "pay" : s.route }));
+        window.location.hash = "/pay";
+      }} onClose={() => setState((s) => ({ ...s, authRequiredReason: null }))} showToast={showToast} />}
       {toast && <div className="toast show">{toast.text}</div>}
     </>
   );
@@ -1359,16 +1427,19 @@ function SuccessRedirectPage({
         if (sessionId) {
           await fetch(`/api/orders/by-session/${encodeURIComponent(sessionId)}`).catch(() => undefined);
         }
-        const response = await fetch(`/api/me/entitlements?client_id=${encodeURIComponent(state.clientId)}`);
-        const data = await response.json().catch(() => ({} as { entitlements?: Array<{ topic_remaining?: number; comprehensive_remaining?: number }> }));
-        if (response.ok && Array.isArray(data.entitlements)) {
-          const entitlements = data.entitlements as Array<{ topic_remaining?: number; comprehensive_remaining?: number }>;
-          const rights = entitlements.reduce((acc: { topic: number; comprehensive: number }, item) => ({
-            topic: acc.topic + Number(item.topic_remaining || 0),
-            comprehensive: acc.comprehensive + Number(item.comprehensive_remaining || 0),
-          }), { topic: 0, comprehensive: 0 });
+        const response = state.authToken
+          ? await fetch("/api/me", { headers: { authorization: `Bearer ${state.authToken}` } })
+          : await fetch(`/api/me/entitlements?client_id=${encodeURIComponent(state.clientId)}`);
+        const data = await response.json().catch(() => ({} as { rights?: Rights; user?: AuthUser; entitlements?: Array<{ topic_remaining?: number; comprehensive_remaining?: number }> }));
+        if (response.ok) {
+          const rights = data.rights || (Array.isArray(data.entitlements)
+            ? data.entitlements.reduce((acc: { topic: number; comprehensive: number }, item: { topic_remaining?: number; comprehensive_remaining?: number }) => ({
+              topic: acc.topic + Number(item.topic_remaining || 0),
+              comprehensive: acc.comprehensive + Number(item.comprehensive_remaining || 0),
+            }), { topic: 0, comprehensive: 0 })
+            : undefined);
           if (!cancelled) {
-            setState((s) => ({ ...s, rights }));
+            setState((s) => ({ ...s, rights: rights || s.rights, user: data.user || s.user }));
           }
         }
       } finally {
@@ -1380,7 +1451,7 @@ function SuccessRedirectPage({
     return () => {
       cancelled = true;
     };
-  }, [nav, setState, state.clientId, state.preAnalysis, state.uploadStatus]);
+  }, [nav, setState, state.authToken, state.clientId, state.preAnalysis, state.uploadStatus]);
   return <main className="page success-page" aria-live="polite">支付成功，正在更新权益...</main>;
 }
 
@@ -1943,18 +2014,18 @@ function PreAnalysisPage({
   products,
   nav,
   onAnalyze,
-  onOpenPaywall,
+  onNeedPayment,
 }: {
   state: AppState;
   type: ReportType;
   products: Product[];
   nav: (r: Route) => void;
   onAnalyze: () => void;
-  onOpenPaywall: (reason: string) => void;
+  onNeedPayment: () => void;
 }) {
   useEffect(() => {
-    if (!isCurrentPreAnalysis(state.preAnalysis, type.id)) onAnalyze();
-  }, [state.preAnalysis, type.id]);
+    if (!state.preAnalysisError && !state.isPreAnalyzing && !isCurrentPreAnalysis(state.preAnalysis, type.id)) onAnalyze();
+  }, [state.preAnalysis, state.preAnalysisError, state.isPreAnalyzing, type.id]);
   const analysis = state.preAnalysis?.reportType === type.id ? state.preAnalysis : undefined;
   const recommendedProduct = products.find((item) => item.id === (analysis?.recommendedProductId || (type.id === "comprehensive" ? "full" : "single")));
   const hasRight = state.rights[type.rightKey] > 0;
@@ -1970,7 +2041,7 @@ function PreAnalysisPage({
         <div className="preanalysis-copy">
           <small>AISea Preview</small>
           <h2>{analysis?.title || `${type.name}预分析`}</h2>
-          <p>{analysis?.summary || "正在读取照片、专题和偏好，生成一份低成本文字预分析。"}</p>
+          <p>{analysis?.summary || (state.preAnalysisError ? "预分析生成失败，请检查照片后重试。" : "正在读取照片、专题和偏好，生成真实 AI 文字预分析。")}</p>
         </div>
       </section>
 
@@ -1978,6 +2049,17 @@ function PreAnalysisPage({
         <section className="preanalysis-loading">
           <Sparkles />
           <span>正在生成文字预分析...</span>
+        </section>
+      )}
+
+      {state.preAnalysisError && !state.isPreAnalyzing && (
+        <section className="preanalysis-error">
+          <h3>预分析暂时不可用</h3>
+          <p>{state.preAnalysisError}</p>
+          <button className="confirm-primary-btn" onClick={onAnalyze} type="button">
+            <span className="confirm-primary-btn__label">重新生成预分析</span>
+            <Sparkles size={18} />
+          </button>
         </section>
       )}
 
@@ -1992,7 +2074,7 @@ function PreAnalysisPage({
             ))}
           </section>
 
-          {state.preAnalysisError && <p className="preanalysis-note">接口暂不可用，当前展示本地预分析模板：{state.preAnalysisError}</p>}
+          {!analysis.aiGenerated && <p className="preanalysis-note">当前为降级预分析，完整报告生成前建议重新生成 AI 预分析。</p>}
         </>
       )}
 
@@ -2007,7 +2089,7 @@ function PreAnalysisPage({
           onClick={() => {
             if (!analysis || state.isPreAnalyzing) return;
             if (!hasRight) {
-              onOpenPaywall(type.rightKey === "comprehensive" ? "综合报告需要先购买全案探索卡" : "生成完整专题前需要先完成支付");
+              onNeedPayment();
               return;
             }
             nav("confirm");
@@ -2020,6 +2102,177 @@ function PreAnalysisPage({
         <button className="confirm-secondary-btn" onClick={() => nav("upload")}>重新上传照片</button>
       </section>
     </main>
+  );
+}
+
+function PayPage({
+  state,
+  setState,
+  paying,
+  products,
+  onCheckout,
+  nav,
+}: {
+  state: AppState;
+  setState: React.Dispatch<React.SetStateAction<AppState>>;
+  paying: PayingState;
+  products: Product[];
+  onCheckout: (item: PaywallPackage, channel: PayChannel) => void;
+  nav: (r: Route) => void;
+}) {
+  const selected = PAYWALL_PACKAGES.find((item) => item.id === state.selectedPayPackageId) || PAYWALL_PACKAGES[0];
+  const productId = selected.id === "full_case" ? "full" : selected.id === "three_topic" ? "triple" : "single";
+  const product = products.find((item) => item.id === productId);
+  const canPay = Boolean(state.user && state.authToken);
+  return (
+    <main className="page pay-page">
+      <PageHeader title="确认支付" description="登录后购买的权益会绑定到手机号，关闭浏览器后也可以找回。" onBack={() => nav("preanalysis")} backLabel="返回预分析" align="left" />
+
+      <section className="pay-account-card">
+        <div>
+          <span>当前账号</span>
+          <strong>{state.user ? state.user.masked_phone || state.user.display_name : "未登录"}</strong>
+          <p>{state.user ? "支付成功后权益将发放到该手机号。" : "请先完成手机号登录，再选择支付方式。"}</p>
+        </div>
+        {!state.user && <button className="confirm-secondary-btn" onClick={() => setState((s) => ({ ...s, authRequiredReason: "pay" }))}>手机号登录</button>}
+      </section>
+
+      <section className="pay-package-list">
+        {PAYWALL_PACKAGES.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`pay-package-option ${selected.id === item.id ? "selected" : ""}`}
+            onClick={() => setState((s) => ({ ...s, selectedPayPackageId: item.id, payError: undefined }))}
+          >
+            <span>
+              <b>{item.title}</b>
+              <small>{item.description}</small>
+            </span>
+            <strong>¥{item.price}</strong>
+          </button>
+        ))}
+      </section>
+
+      <section className="pay-detail-card">
+        <h2>{selected.title}</h2>
+        <p>{product?.description || selected.description}</p>
+        <div className="pay-rights-row">
+          <span>专题权益 <b>{product?.rights.topic ?? (selected.id === "single_topic" ? 1 : 3)}</b></span>
+          <span>综合权益 <b>{product?.rights.comprehensive ?? (selected.id === "full_case" ? 1 : 0)}</b></span>
+        </div>
+        {state.payError && <p className="pay-error">{state.payError}</p>}
+        <div className="payment-buttons pay-page-buttons">
+          <button type="button" className="pay-button wechat" disabled={!canPay || paying?.packageId === selected.id} onClick={() => onCheckout(selected, "wechat")}>
+            <WechatPayIcon />
+            {isPaying(paying, selected.id, "wechat") ? "跳转中..." : "微信支付"}
+          </button>
+          <button type="button" className="pay-button alipay" disabled={!canPay || paying?.packageId === selected.id} onClick={() => onCheckout(selected, "alipay")}>
+            <AlipayPayIcon />
+            {isPaying(paying, selected.id, "alipay") ? "跳转中..." : "支付宝支付"}
+          </button>
+        </div>
+        <footer>
+          <ShieldCheck size={16} />
+          <span>Stripe 安全托管支付，支付成功后自动回到报告流程。</span>
+        </footer>
+      </section>
+    </main>
+  );
+}
+
+function LoginSheet({
+  state,
+  setState,
+  onAuthed,
+  onClose,
+  showToast,
+}: {
+  state: AppState;
+  setState: React.Dispatch<React.SetStateAction<AppState>>;
+  onAuthed: (token: string) => void;
+  onClose: () => void;
+  showToast: (text: string) => void;
+}) {
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [hint, setHint] = useState("登录后，支付权益会保存到手机号。");
+
+  async function sendCode() {
+    if (sending) return;
+    setSending(true);
+    try {
+      const response = await fetch("/api/auth/sms/send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone, client_id: state.clientId }),
+      });
+      const data = await response.json().catch(() => ({} as { message?: string; dev_code?: string; provider?: string }));
+      if (!response.ok) throw new Error(data.message || "验证码发送失败");
+      const devHint = data.dev_code ? ` 测试验证码：${data.dev_code}` : "";
+      setHint(`验证码已发送。${devHint}`);
+      if (data.dev_code) setCode(data.dev_code);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "验证码发送失败";
+      setHint(message);
+      showToast(message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function verifyCode() {
+    if (verifying) return;
+    setVerifying(true);
+    try {
+      const response = await fetch("/api/auth/sms/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone, code, client_id: state.clientId }),
+      });
+      const data = await response.json().catch(() => ({} as { token?: string; user?: AuthUser; message?: string; rights?: Rights }));
+      if (!response.ok || !data.token) throw new Error(data.message || "登录失败");
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      setState((s) => ({ ...s, authToken: data.token || "", user: data.user, authRequiredReason: null }));
+      onAuthed(data.token);
+      showToast("登录成功");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "登录失败";
+      setHint(message);
+      showToast(message);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  return (
+    <div className="paywall-backdrop" onClick={onClose}>
+      <section className="login-sheet" onClick={(event) => event.stopPropagation()} aria-label="手机号登录">
+        <button className="paywall-close" onClick={onClose} aria-label="关闭"><XMark /></button>
+        <header>
+          <KeyRound size={30} />
+          <h2>手机号登录</h2>
+          <p>{hint}</p>
+        </header>
+        <label>
+          <span>手机号</span>
+          <input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" placeholder="请输入手机号" />
+        </label>
+        <label>
+          <span>验证码</span>
+          <div className="login-code-row">
+            <input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" placeholder="6 位验证码" />
+            <button type="button" onClick={sendCode} disabled={sending}>{sending ? "发送中" : "获取验证码"}</button>
+          </div>
+        </label>
+        <button className="confirm-primary-btn" type="button" onClick={verifyCode} disabled={verifying}>
+          <span className="confirm-primary-btn__label">{verifying ? "登录中..." : "登录并继续"}</span>
+          <Sparkles size={18} />
+        </button>
+      </section>
+    </div>
   );
 }
 
@@ -2139,14 +2392,14 @@ function ConfirmPage({
   type,
   nav,
   startGenerate,
-  onOpenPaywall,
+  onNeedPayment,
 }: {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   type: ReportType;
   nav: (r: Route) => void;
   startGenerate: () => void;
-  onOpenPaywall: (reason: string) => void;
+  onNeedPayment: () => void;
 }) {
   const selectedPreferenceLabels = [
     ...state.preferences.stylePreferences.map((item) => ({ key: `style-${item}`, label: preferenceLabel("style", item) })),
@@ -2229,7 +2482,7 @@ function ConfirmPage({
           onClick={() => {
             if (!canProceed) return;
             if (!hasRight) {
-              onOpenPaywall("生成完整报告前需要先完成支付");
+              onNeedPayment();
               return;
             }
             startGenerate();

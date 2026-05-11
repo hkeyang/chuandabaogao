@@ -27,7 +27,14 @@ interface Env {
   OPENAI_IMAGE_ENDPOINT: string;
   OPENAI_IMAGE_MODEL: string;
   OPENAI_API_KEY: string;
+  OPENAI_RESPONSES_ENDPOINT?: string;
   OPENAI_PREANALYSIS_MODEL?: string;
+  ALIYUN_ACCESS_KEY_ID?: string;
+  ALIYUN_ACCESS_KEY_SECRET?: string;
+  ALIYUN_SMS_SIGN_NAME?: string;
+  ALIYUN_SMS_TEMPLATE_CODE?: string;
+  ALIYUN_SMS_ENDPOINT?: string;
+  AUTH_DEV_CODE?: string;
   ADMIN_PASSWORD_SECRET: string;
   COUPON_VALID_DAYS: string;
   STRIPE_SECRET_KEY?: string;
@@ -74,7 +81,7 @@ const DEFAULT_PRODUCT_ROWS: ProductRow[] = [
   {
     id: "single",
     name: "单次专题报告券",
-    price: 1.9,
+    price: 4,
     original_price: null,
     badge: null,
     description: "专题 ×1",
@@ -122,6 +129,7 @@ type OrderRow = {
   id: string;
   order_no: string;
   client_id: string;
+  user_id?: string | null;
   product_id: string;
   product_snapshot_json: string;
   amount: number;
@@ -153,6 +161,29 @@ type EntitlementRow = {
   id: string;
   topic_remaining: number;
   comprehensive_remaining: number;
+};
+type UserRow = {
+  id: string;
+  phone: string;
+  display_name: string;
+  created_at: string;
+  last_login_at?: string | null;
+};
+type AuthUser = {
+  id: string;
+  phone: string;
+  display_name: string;
+};
+type SmsCodeRow = {
+  id: string;
+  phone: string;
+  code_hash: string;
+  purpose: string;
+  status: string;
+  attempts: number;
+  expires_at: string;
+  created_at: string;
+  used_at?: string | null;
 };
 
 const json = (data: unknown, init: ResponseInit = {}) =>
@@ -187,6 +218,12 @@ function userFacingGenerationError(error: unknown) {
   if (/image task query failed/i.test(message)) return "生图任务查询失败，请稍后重新生成，未扣除权益。";
   if (/completed without/i.test(message)) return "生图服务没有返回报告图，请重新生成，未扣除权益。";
   return message || "生成失败，请重新生成，未扣除权益。";
+}
+
+function redactedUpstreamError(message: string) {
+  return message
+    .replace(/sk-[A-Za-z0-9_*.-]+/g, "[redacted_api_key]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]");
 }
 
 function randomId(prefix: string) {
@@ -342,6 +379,7 @@ function orderPayload(order: OrderRow | null) {
   return {
     id: order.id,
     order_no: order.order_no,
+    user_id: order.user_id || "",
     product_id: order.product_id,
     product: JSON.parse(order.product_snapshot_json || "{}"),
     amount: order.amount,
@@ -357,6 +395,120 @@ function orderPayload(order: OrderRow | null) {
     created_at: order.created_at,
     updated_at: order.updated_at,
   };
+}
+
+function parseJsonObject(text: string) {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed) as Json;
+  } catch {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("preanalysis_json_missing");
+    return JSON.parse(match[0]) as Json;
+  }
+}
+
+function responseOutputText(payload: Json) {
+  if (typeof payload.output_text === "string") return payload.output_text;
+  const output = Array.isArray(payload.output) ? payload.output : [];
+  const parts: string[] = [];
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const content = Array.isArray((item as Json).content) ? (item as Json).content as Json[] : [];
+    for (const part of content) {
+      if (typeof part.text === "string") parts.push(part.text);
+      if (typeof part.output_text === "string") parts.push(part.output_text);
+    }
+  }
+  return parts.join("\n").trim();
+}
+
+function normalizePreAnalysis(raw: Json, fallback: {
+  reportType: string;
+  label: string;
+  fit: "good" | "warning" | "poor";
+  recommendedProductId: string;
+}) {
+  const sections = Array.isArray(raw.sections) ? raw.sections : [];
+  const normalizedSections = sections.slice(0, 3).map((section, index) => {
+    const item = section && typeof section === "object" ? section as Json : {};
+    return {
+      title: String(item.title || ["整体判断", "当前优势", "优先优化"][index] || "分析建议"),
+      text: String(item.text || ""),
+    };
+  }).filter((section) => section.text.trim());
+  while (normalizedSections.length < 3) {
+    const titles = ["整体判断", "当前优势", "优先优化"];
+    normalizedSections.push({ title: titles[normalizedSections.length], text: "当前照片可用于预分析，完整报告会继续细化可执行建议。" });
+  }
+  const keywords = Array.isArray(raw.keywords) ? raw.keywords.map(String).filter(Boolean).slice(0, 3) : [];
+  while (keywords.length < 3) keywords.push(["方向明确", "可继续深化", "适合生成"][keywords.length]);
+  const photoFit = ["good", "warning", "poor"].includes(String(raw.photoFit)) ? String(raw.photoFit) : fallback.fit;
+  return {
+    id: String(raw.id || randomId("pa")),
+    reportType: fallback.reportType,
+    title: String(raw.title || `${fallback.label}预分析`),
+    summary: String(raw.summary || normalizedSections[0]?.text || "当前照片适合继续生成完整形象报告。"),
+    keywords,
+    photoFit,
+    photoAdvice: String(raw.photoAdvice || "建议使用清晰、正面、自然光照片，完整报告会更准确。"),
+    recommendedProductId: String(raw.recommendedProductId || fallback.recommendedProductId),
+    sections: normalizedSections,
+    aiGenerated: Boolean(raw.aiGenerated ?? true),
+  };
+}
+
+async function createAiPreAnalysis(env: Env, input: Json, fallback: {
+  reportType: string;
+  label: string;
+  fit: "good" | "warning" | "poor";
+  recommendedProductId: string;
+}) {
+  if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY missing");
+  const userPhoto = String(input.user_photo_data_url || input.user_photo_url || "");
+  if (!userPhoto) throw new Error("user_photo_data_url_required");
+  const model = env.OPENAI_PREANALYSIS_MODEL || "gpt-4.1-mini";
+  const prompt = [
+    "你是 AISea 的个人形象预分析师。请只基于用户上传照片中能看见的信息，结合用户偏好，生成温和、具体、可执行的中文预分析。",
+    "不要评价颜值，不要做医学、种族、年龄、身份等敏感推断；不确定就写“照片中暂不明显”。",
+    "必须返回纯 JSON，不要 Markdown。JSON 字段：title, summary, keywords(3个字符串), photoFit(good|warning|poor), photoAdvice, recommendedProductId(single|triple|full), sections(3个对象，标题固定为“整体判断”“当前优势”“优先优化”，每个 text 60-100 字)。",
+    `报告类型：${String(input.report_name || fallback.label)} (${fallback.reportType})`,
+    `风格偏好：${String(input.style_preference || "系统推荐")}`,
+    `场景偏好：${String(input.scene_preference || "日常干净")}`,
+    `改变幅度：${String(input.change_level || "轻微优化")}`,
+    `照片检测：${String(input.photo_check_result || "available")}`,
+  ].join("\n");
+  const responsesEndpoint = (env.OPENAI_RESPONSES_ENDPOINT || "https://api.openai.com/v1/responses").replace(/\/$/, "");
+  const response = await fetch(responsesEndpoint, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      input: [{
+        role: "user",
+        content: [
+          { type: "input_text", text: prompt },
+          { type: "input_image", image_url: userPhoto, detail: "low" },
+        ],
+      }],
+      text: {
+        format: {
+          type: "json_object",
+        },
+      },
+    }),
+  });
+  const payload = await response.json().catch(() => ({})) as Json;
+  if (!response.ok) {
+    const detail = typeof payload.error === "object" && payload.error ? JSON.stringify(payload.error).slice(0, 300) : JSON.stringify(payload).slice(0, 300);
+    throw new Error(`preanalysis_ai_failed:${response.status}:${detail}`);
+  }
+  const text = responseOutputText(payload);
+  if (!text) throw new Error("preanalysis_ai_empty");
+  return normalizePreAnalysis(parseJsonObject(text), fallback);
 }
 
 async function fulfillOrder(env: Env, orderId: string, stripePaymentIntentId = "") {
@@ -381,9 +533,9 @@ async function fulfillOrder(env: Env, orderId: string, stripePaymentIntentId = "
     .bind(code, stripePaymentIntentId, paidAt, now(), now(), order.id)
     .run();
   await env.DB.prepare(`INSERT INTO entitlements
-    (id, client_id, order_id, product_id, topic_remaining, comprehensive_remaining, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`)
-    .bind(randomId("ent"), order.client_id, order.id, order.product_id, order.rights_topic, order.rights_comprehensive, now(), now())
+    (id, client_id, user_id, order_id, product_id, topic_remaining, comprehensive_remaining, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`)
+    .bind(randomId("ent"), order.client_id, order.user_id || null, order.id, order.product_id, order.rights_topic, order.rights_comprehensive, now(), now())
     .run();
 
   return {
@@ -397,11 +549,12 @@ async function fulfillOrder(env: Env, orderId: string, stripePaymentIntentId = "
   };
 }
 
-async function availableEntitlement(env: Env, clientId: string, rightKey: string) {
-  if (!clientId) return null;
+async function availableEntitlement(env: Env, clientId: string, rightKey: string, userId = "") {
+  if (!clientId && !userId) return null;
   const column = rightKey === "comprehensive" ? "comprehensive_remaining" : "topic_remaining";
-  return env.DB.prepare(`SELECT id, topic_remaining, comprehensive_remaining FROM entitlements WHERE client_id = ? AND status = 'active' AND ${column} > 0 ORDER BY created_at ASC LIMIT 1`)
-    .bind(clientId)
+  const where = userId ? "user_id = ?" : "client_id = ?";
+  return env.DB.prepare(`SELECT id, topic_remaining, comprehensive_remaining FROM entitlements WHERE ${where} AND status = 'active' AND ${column} > 0 ORDER BY created_at ASC LIMIT 1`)
+    .bind(userId || clientId)
     .first<EntitlementRow>();
 }
 
@@ -440,6 +593,97 @@ async function hash(input: string) {
   const data = new TextEncoder().encode(input);
   const digest = await crypto.subtle.digest("SHA-256", data);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function normalizePhone(phone: string) {
+  const compact = phone.replace(/[^\d+]/g, "");
+  if (/^1\d{10}$/.test(compact)) return `+86${compact}`;
+  if (/^\+86[1]\d{10}$/.test(compact)) return compact;
+  if (/^861\d{10}$/.test(compact)) return `+${compact}`;
+  return compact;
+}
+
+function maskPhone(phone: string) {
+  const normalized = normalizePhone(phone);
+  return normalized.replace(/(\+?\d{2,4})\d{4}(\d{3,4})$/, "$1****$2");
+}
+
+function randomDigits(length: number) {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes, (byte) => String(byte % 10)).join("");
+}
+
+function rfc3986(input: string) {
+  return encodeURIComponent(input).replace(/[!*'()]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+async function hmacSha1Base64(secret: string, text: string) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+  const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
+  let binary = "";
+  for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+async function sendAliyunSms(env: Env, phone: string, code: string) {
+  if (!env.ALIYUN_ACCESS_KEY_ID || !env.ALIYUN_ACCESS_KEY_SECRET || !env.ALIYUN_SMS_SIGN_NAME || !env.ALIYUN_SMS_TEMPLATE_CODE) {
+    if (env.AUTH_DEV_CODE) return { sent: false, provider: "dev" };
+    throw new Error("sms_provider_not_configured");
+  }
+  const endpoint = env.ALIYUN_SMS_ENDPOINT || "https://dysmsapi.aliyuncs.com/";
+  const params: Record<string, string> = {
+    AccessKeyId: env.ALIYUN_ACCESS_KEY_ID,
+    Action: "SendSms",
+    Format: "JSON",
+    PhoneNumbers: phone.replace(/^\+86/, ""),
+    RegionId: "cn-hangzhou",
+    SignName: env.ALIYUN_SMS_SIGN_NAME,
+    SignatureMethod: "HMAC-SHA1",
+    SignatureNonce: crypto.randomUUID(),
+    SignatureVersion: "1.0",
+    TemplateCode: env.ALIYUN_SMS_TEMPLATE_CODE,
+    TemplateParam: JSON.stringify({ code }),
+    Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    Version: "2017-05-25",
+  };
+  const canonical = Object.keys(params).sort().map((key) => `${rfc3986(key)}=${rfc3986(params[key])}`).join("&");
+  const stringToSign = `GET&%2F&${rfc3986(canonical)}`;
+  const signature = await hmacSha1Base64(`${env.ALIYUN_ACCESS_KEY_SECRET}&`, stringToSign);
+  const url = `${endpoint}?Signature=${rfc3986(signature)}&${canonical}`;
+  const response = await fetch(url);
+  const payload = await response.json().catch(() => ({})) as Json;
+  if (!response.ok || String(payload.Code || "") !== "OK") {
+    throw new Error(String(payload.Message || payload.Code || `aliyun_sms_${response.status}`));
+  }
+  return { sent: true, provider: "aliyun" };
+}
+
+async function requireUser(request: Request, env: Env): Promise<AuthUser | null> {
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+  if (!token) return null;
+  const tokenHash = await hash(token);
+  try {
+    const row = await env.DB.prepare(`SELECT users.id, users.phone, users.display_name
+      FROM auth_sessions
+      JOIN users ON users.id = auth_sessions.user_id
+      WHERE auth_sessions.token_hash = ? AND auth_sessions.revoked_at IS NULL AND auth_sessions.expires_at > ?
+      LIMIT 1`)
+      .bind(tokenHash, now())
+      .first<AuthUser>();
+    return row;
+  } catch (error) {
+    if (isMissingTableError(error)) return null;
+    throw error;
+  }
+}
+
+function userPayload(user: AuthUser | UserRow) {
+  return {
+    id: user.id,
+    phone: user.phone,
+    masked_phone: maskPhone(user.phone),
+    display_name: user.display_name,
+  };
 }
 
 async function requireAdmin(request: Request, env: Env, roles: string[] = ["owner", "admin"]) {
@@ -737,28 +981,123 @@ async function handleApi(request: Request, env: Env, url: URL) {
     const fit = photoCheck === "failed" ? "poor" : photoCheck === "warning" ? "warning" : "good";
     const recommendedProductId = reportType === "comprehensive" ? "full" : "single";
     const label = labels[reportType] || labels.hair;
+    try {
+      return json(await createAiPreAnalysis(env, { ...input, style_preference: style, scene_preference: scene, change_level: change }, {
+        reportType,
+        label,
+        fit,
+        recommendedProductId,
+      }));
+    } catch (error) {
+      const message = redactedUpstreamError(error instanceof Error ? error.message : "preanalysis_failed");
+      console.error("[preanalysis] failed", { message, reportType });
+      return json({
+        error: "PREANALYSIS_AI_FAILED",
+        message: "预分析暂时不可用，请稍后重试。",
+        detail: message,
+      }, { status: 502 });
+    }
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/sms/send") {
+    const input = await body(request);
+    const phone = normalizePhone(String(input.phone || ""));
+    const clientId = String(input.client_id || "");
+    if (!/^\+861\d{10}$/.test(phone)) return json({ error: "invalid_phone", message: "请输入有效的中国大陆手机号" }, { status: 400 });
+    const code = env.AUTH_DEV_CODE || randomDigits(6);
+    const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
+    await env.DB.prepare("INSERT INTO sms_codes (id, phone, code_hash, purpose, status, attempts, expires_at, created_at) VALUES (?, ?, ?, 'login', 'pending', 0, ?, ?)")
+      .bind(randomId("sms"), phone, await hash(code), expiresAt, now())
+      .run();
+    let sms: { sent: boolean; provider: string };
+    try {
+      sms = await sendAliyunSms(env, phone, code);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "sms_send_failed";
+      return json({
+        error: detail === "sms_provider_not_configured" ? "SMS_PROVIDER_NOT_CONFIGURED" : "SMS_SEND_FAILED",
+        message: detail === "sms_provider_not_configured" ? "短信服务尚未配置，请联系管理员。" : "验证码发送失败，请稍后重试。",
+        detail,
+      }, { status: 503 });
+    }
+    await audit(env, clientId || "guest", "auth.sms_send", `${maskPhone(phone)} ${sms.provider}`, request).catch(() => undefined);
     return json({
-      id: randomId("pa"),
-      reportType,
-      title: `${label}预分析`,
-      summary: `当前偏好是「${style} / ${scene} / ${change}」。预分析先判断方向，完整报告会把建议整理成可保存的高清长图。`,
-      keywords: reportType === "comprehensive" ? ["完整定位", "多维建议", "可保存长图"] : ["方向明确", "贴合场景", "可继续深化"],
-      photoFit: fit,
-      photoAdvice: requirements[reportType] || requirements.hair,
-      recommendedProductId,
-      sections: [
-        { title: "风格方向", text: `建议围绕「${style}」和「${scene}」做形象延展，让整体观感更明确、更适合当前使用场景。` },
-        { title: "本次重点", text: reportType === "comprehensive" ? "完整报告会同时看发型、色彩、面部状态、穿搭和场景，先给出整体形象定位。" : `完整报告会优先展开${label}，判断当前照片里最值得优化的细节。` },
-        { title: "生成建议", text: `${requirements[reportType] || requirements.hair} 当前改变幅度是「${change}」，适合输出可执行、不过度的方案。` },
-      ],
+      ok: true,
+      phone: maskPhone(phone),
+      expires_at: expiresAt,
+      provider: sms.provider,
+      dev_code: sms.provider === "dev" ? code : undefined,
     });
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/sms/verify") {
+    const input = await body(request);
+    const phone = normalizePhone(String(input.phone || ""));
+    const code = String(input.code || "").trim();
+    const clientId = String(input.client_id || "");
+    if (!/^\+861\d{10}$/.test(phone) || !/^\d{4,8}$/.test(code)) return json({ error: "invalid_code", message: "验证码不正确" }, { status: 400 });
+    const row = await env.DB.prepare("SELECT * FROM sms_codes WHERE phone = ? AND purpose = 'login' AND status = 'pending' ORDER BY created_at DESC LIMIT 1")
+      .bind(phone)
+      .first<SmsCodeRow>();
+    if (!row || row.expires_at < now()) return json({ error: "code_expired", message: "验证码已过期，请重新获取" }, { status: 400 });
+    if (row.attempts >= 5) return json({ error: "too_many_attempts", message: "验证码尝试次数过多，请重新获取" }, { status: 429 });
+    const codeHash = await hash(code);
+    if (codeHash !== row.code_hash) {
+      await env.DB.prepare("UPDATE sms_codes SET attempts = attempts + 1 WHERE id = ?").bind(row.id).run();
+      return json({ error: "invalid_code", message: "验证码不正确" }, { status: 400 });
+    }
+    await env.DB.prepare("UPDATE sms_codes SET status = 'used', used_at = ? WHERE id = ?").bind(now(), row.id).run();
+    let user = await env.DB.prepare("SELECT * FROM users WHERE phone = ?").bind(phone).first<UserRow>();
+    if (!user) {
+      const userId = randomId("usr");
+      await env.DB.prepare("INSERT INTO users (id, phone, display_name, created_at, last_login_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(userId, phone, `用户${phone.slice(-4)}`, now(), now())
+        .run();
+      user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first<UserRow>();
+    } else {
+      await env.DB.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(now(), user.id).run();
+    }
+    if (!user) throw new Error("user_create_failed");
+    if (clientId) {
+      await env.DB.prepare("UPDATE orders SET user_id = ? WHERE client_id = ? AND user_id IS NULL").bind(user.id, clientId).run().catch(() => undefined);
+      await env.DB.prepare("UPDATE entitlements SET user_id = ? WHERE client_id = ? AND user_id IS NULL").bind(user.id, clientId).run().catch(() => undefined);
+      await env.DB.prepare("UPDATE reports SET user_id = ? WHERE client_id = ? AND user_id IS NULL").bind(user.id, clientId).run().catch(() => undefined);
+    }
+    const token = `${randomId("tok")}.${crypto.randomUUID().replaceAll("-", "")}`;
+    const sessionExpiresAt = new Date(Date.now() + 30 * 86400_000).toISOString();
+    await env.DB.prepare("INSERT INTO auth_sessions (id, user_id, token_hash, client_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(randomId("ses"), user.id, await hash(token), clientId || null, sessionExpiresAt, now())
+      .run();
+    await audit(env, user.id, "auth.login", maskPhone(phone), request).catch(() => undefined);
+    return json({ token, expires_at: sessionExpiresAt, user: userPayload(user) });
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/logout") {
+    const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+    if (token) await env.DB.prepare("UPDATE auth_sessions SET revoked_at = ? WHERE token_hash = ?").bind(now(), await hash(token)).run().catch(() => undefined);
+    return json({ ok: true });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/me") {
+    const user = await requireUser(request, env);
+    if (!user) return json({ error: "unauthorized", message: "请先登录" }, { status: 401 });
+    const entitlements = await env.DB.prepare("SELECT * FROM entitlements WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all();
+    const orders = await env.DB.prepare("SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 20").bind(user.id).all<OrderRow>();
+    const rights = entitlements.results.reduce((acc: { topic: number; comprehensive: number }, item: Json) => ({
+      topic: acc.topic + Number(item.topic_remaining || 0),
+      comprehensive: acc.comprehensive + Number(item.comprehensive_remaining || 0),
+    }), { topic: 0, comprehensive: 0 });
+    return json({ user: userPayload(user), rights, entitlements: entitlements.results, orders: orders.results.map(orderPayload) });
   }
 
   if (request.method === "GET" && url.pathname === "/api/me/entitlements") {
     const clientId = url.searchParams.get("client_id") || "";
-    if (!clientId) return json({ error: "client_id_required" }, { status: 400 });
+    const user = await requireUser(request, env);
+    if (!clientId && !user) return json({ error: "client_id_required" }, { status: 400 });
     try {
-      const rows = await env.DB.prepare("SELECT * FROM entitlements WHERE client_id = ? ORDER BY created_at DESC").bind(clientId).all();
+      const rows = user
+        ? await env.DB.prepare("SELECT * FROM entitlements WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all()
+        : await env.DB.prepare("SELECT * FROM entitlements WHERE client_id = ? ORDER BY created_at DESC").bind(clientId).all();
       return json({ entitlements: rows.results });
     } catch (err) {
       if (isMissingTableError(err)) return setupRequiredResponse();
@@ -768,8 +1107,11 @@ async function handleApi(request: Request, env: Env, url: URL) {
 
   if (request.method === "GET" && url.pathname === "/api/me/reports") {
     const clientId = url.searchParams.get("client_id") || "";
-    if (!clientId) return json({ error: "client_id_required" }, { status: 400 });
-    const rows = await env.DB.prepare("SELECT id, report_type, style_persona, status, error, created_at, completed_at FROM reports WHERE client_id = ? ORDER BY created_at DESC LIMIT 50").bind(clientId).all();
+    const user = await requireUser(request, env);
+    if (!clientId && !user) return json({ error: "client_id_required" }, { status: 400 });
+    const rows = user
+      ? await env.DB.prepare("SELECT id, report_type, style_persona, status, error, created_at, completed_at FROM reports WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").bind(user.id).all()
+      : await env.DB.prepare("SELECT id, report_type, style_persona, status, error, created_at, completed_at FROM reports WHERE client_id = ? ORDER BY created_at DESC LIMIT 50").bind(clientId).all();
     return json({ reports: rows.results });
   }
 
@@ -789,10 +1131,12 @@ async function handleApi(request: Request, env: Env, url: URL) {
 
   if (request.method === "POST" && url.pathname === "/api/orders/checkout") {
     const input = await body(request);
+    const user = await requireUser(request, env);
     const packageId = String(input.package_id || input.packageId || "");
     const productId = String(input.product_id || input.productId || "");
     const channel = String(input.channel || "") as PayChannel | "";
     const clientId = String(input.client_id || "");
+    if (!user) return json({ error: "AUTH_REQUIRED", message: "请先登录后再支付。" }, { status: 401 });
     if (!packageId) return json({ error: "package_id_required", message: "套餐信息缺失，请重新打开支付窗口" }, { status: 400 });
     if (!productId) return json({ error: "product_id_required", message: "商品信息缺失，请稍后重试" }, { status: 400 });
     if (channel !== "wechat" && channel !== "alipay") {
@@ -850,9 +1194,9 @@ async function handleApi(request: Request, env: Env, url: URL) {
     const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
 
     await env.DB.prepare(`INSERT INTO orders
-      (id, order_no, client_id, product_id, product_snapshot_json, amount, currency, status, rights_topic, rights_comprehensive, expires_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?)`)
-      .bind(orderId, orderNoValue, clientId, product.id, JSON.stringify(productSnapshot), amount, currency, product.topic_rights, product.comprehensive_rights, expiresAt, now(), now())
+      (id, order_no, client_id, user_id, product_id, product_snapshot_json, amount, currency, status, rights_topic, rights_comprehensive, expires_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?)`)
+      .bind(orderId, orderNoValue, clientId, user.id, product.id, JSON.stringify(productSnapshot), amount, currency, product.topic_rights, product.comprehensive_rights, expiresAt, now(), now())
       .run();
 
     const params = new URLSearchParams();
@@ -876,6 +1220,9 @@ async function handleApi(request: Request, env: Env, url: URL) {
     params.set("metadata[package_id]", packageId);
     params.set("metadata[channel]", channel);
     params.set("metadata[client_id]", clientId);
+    params.set("metadata[user_id]", user.id);
+    params.set("metadata[preanalysis_id]", String(input.preanalysis_id || ""));
+    params.set("metadata[report_type]", String(input.report_type || ""));
     params.set("metadata[platform]", "web");
 
     const session = await stripeRequest(env, "/checkout/sessions", params).catch((error) => checkoutErrorResponse(error, channel)) as Json | Response;
@@ -1048,10 +1395,12 @@ async function handleApi(request: Request, env: Env, url: URL) {
     const reportId = randomId("rpt");
     try {
       const input = await body(request);
+      const user = await requireUser(request, env);
+      if (!user) return json({ error: "AUTH_REQUIRED", message: "请先登录后再生成报告。" }, { status: 401 });
       const prompt = promptFor(input);
       const rightKey = String(input.right_key || "topic");
       const clientId = String(input.client_id || "");
-      const entitlement = await availableEntitlement(env, clientId, rightKey);
+      const entitlement = await availableEntitlement(env, clientId, rightKey, user.id);
       if (!entitlement) {
         return json({
           error: "entitlement_required",
@@ -1107,9 +1456,9 @@ async function handleApi(request: Request, env: Env, url: URL) {
       const db = (env as { DB?: D1Database }).DB;
       if (db) {
         await db.prepare(`INSERT INTO reports
-          (id, client_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_key, xhs_cover_image_key, xhs_summary_image_key, report_image_url, xhs_cover_image_url, xhs_summary_image_url, created_at, completed_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-          .bind(reportId, clientId, String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageKey, coverImageKey, summaryImageKey, reportImageUrl, coverImageUrl, summaryImageUrl, now(), status === "completed" ? now() : null)
+          (id, client_id, user_id, coupon_code, report_type, style_persona, style_keywords, prompt, status, error, retry_count, locked_right_key, report_image_key, xhs_cover_image_key, xhs_summary_image_key, report_image_url, xhs_cover_image_url, xhs_summary_image_url, created_at, completed_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(reportId, clientId, user.id, String(input.coupon_code || ""), String(input.report_type || ""), String(input.style_persona || "系统智能风格"), String(input.style_keywords || ""), prompt, status, error, rightKey, reportImageKey, coverImageKey, summaryImageKey, reportImageUrl, coverImageUrl, summaryImageUrl, now(), status === "completed" ? now() : null)
           .run();
       }
       if (status === "completed") {

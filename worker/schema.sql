@@ -8,6 +8,36 @@ CREATE TABLE IF NOT EXISTS admin_users (
   last_login_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  last_login_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sms_codes (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'used', 'expired')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  used_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  token_hash TEXT NOT NULL UNIQUE,
+  client_id TEXT,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  revoked_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -38,6 +68,7 @@ CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
   order_no TEXT NOT NULL UNIQUE,
   client_id TEXT NOT NULL,
+  user_id TEXT,
   product_id TEXT NOT NULL REFERENCES products(id),
   product_snapshot_json TEXT NOT NULL,
   amount INTEGER NOT NULL,
@@ -69,6 +100,7 @@ CREATE TABLE IF NOT EXISTS payment_events (
 CREATE TABLE IF NOT EXISTS entitlements (
   id TEXT PRIMARY KEY,
   client_id TEXT NOT NULL,
+  user_id TEXT,
   order_id TEXT,
   product_id TEXT NOT NULL REFERENCES products(id),
   topic_remaining INTEGER NOT NULL DEFAULT 0,
@@ -81,6 +113,7 @@ CREATE TABLE IF NOT EXISTS entitlements (
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY,
   client_id TEXT NOT NULL,
+  user_id TEXT,
   coupon_code TEXT,
   report_type TEXT NOT NULL,
   style_persona TEXT NOT NULL,
@@ -120,10 +153,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX IF NOT EXISTS idx_coupons_product ON coupons(product_id);
 CREATE INDEX IF NOT EXISTS idx_coupons_status ON coupons(status);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_sms_codes_phone ON sms_codes(phone);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_reports_client ON reports(client_id);
+CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id);
 CREATE INDEX IF NOT EXISTS idx_share_events_report ON share_events(report_id);
 CREATE INDEX IF NOT EXISTS idx_orders_client ON orders(client_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(stripe_checkout_session_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_entitlements_client ON entitlements(client_id);
+CREATE INDEX IF NOT EXISTS idx_entitlements_user ON entitlements(user_id);
 CREATE INDEX IF NOT EXISTS idx_entitlements_order ON entitlements(order_id);

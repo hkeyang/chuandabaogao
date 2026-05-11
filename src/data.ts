@@ -58,7 +58,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
   {
     id: "single",
     name: "单次专题报告券",
-    price: 1.9,
+    price: 4,
     description: "专题 ×1",
     rights: { topic: 1, comprehensive: 0 },
     tags: ["发型发色", "色彩面部", "穿搭配饰", "场景 Look"],
@@ -102,7 +102,7 @@ export const PAYWALL_PACKAGES: PaywallPackage[] = [
     id: "single_topic",
     title: "单次专题报告",
     description: "适合单次体验",
-    price: 1.9,
+    price: 4,
     badge: "本次推荐",
     icon: "document",
     productIds: {
