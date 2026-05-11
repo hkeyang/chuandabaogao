@@ -136,6 +136,48 @@ async function verifyReadiness() {
   };
 }
 
+async function verifyRouteGuards(browser) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 1200 }, locale: "zh-CN" });
+  const page = await context.newPage();
+  try {
+    await page.addInitScript(() => {
+      localStorage.setItem("aisea-react-state-v1", JSON.stringify({
+        route: "progress",
+        reportType: "hair",
+        uploadStatus: "success",
+        progress: 8,
+        isGenerating: true,
+        generationError: "legacy cached failure",
+      }));
+      localStorage.removeItem("aisea-auth-token-v1");
+    });
+    await page.goto(`${baseUrl}/#/progress`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    await page.waitForTimeout(700);
+    const body = await page.locator("body").textContent({ timeout: 10_000 });
+    const currentUrl = page.url();
+    assert(!currentUrl.includes("#/progress"), "Unauthenticated legacy progress route was not redirected", { currentUrl, bodyPreview: (body || "").slice(0, 240) });
+    assert(!(body || "").includes("生成进度") && !(body || "").includes("报告正在生成中"), "Progress UI rendered without login, payment, and generation intent", {
+      currentUrl,
+      bodyPreview: (body || "").slice(0, 240),
+    });
+    const guardScreenshot = await screenshot(page, "route-guard-progress");
+
+    await page.goto(`${baseUrl}/#/pay`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    const wechatDisabled = await page.locator(".pay-button.wechat").first().isDisabled();
+    const alipayDisabled = await page.locator(".pay-button.alipay").first().isDisabled();
+    assert(wechatDisabled && alipayDisabled, "Unauthenticated pay buttons are not disabled", { wechatDisabled, alipayDisabled });
+    return {
+      progressRedirectUrl: currentUrl,
+      guardScreenshot,
+      unauthenticatedPayButtonsDisabled: { wechat: wechatDisabled, alipay: alipayDisabled },
+    };
+  } finally {
+    await context.close();
+  }
+}
+
 async function loginForVerification() {
   const send = await requestJson("/api/auth/sms/send", {
     method: "POST",
@@ -329,6 +371,7 @@ const report = {
     productIds: Object.fromEntries(channels.map((item) => [item.channel, item.productId])),
   },
   readiness: null,
+  routeGuards: null,
   auth: null,
   channels: [],
   failures: [],
@@ -337,12 +380,6 @@ const report = {
 
 try {
   report.readiness = await verifyReadiness();
-  const auth = await loginForVerification();
-  report.auth = {
-    user: auth.user,
-    rights: auth.rights,
-    provider: auth.provider,
-  };
   const executablePath = await findChrome();
   const browser = await chromium.launch({
     headless: true,
@@ -350,6 +387,13 @@ try {
     args: ["--no-sandbox", "--disable-dev-shm-usage"],
   });
   try {
+    report.routeGuards = await verifyRouteGuards(browser);
+    const auth = await loginForVerification();
+    report.auth = {
+      user: auth.user,
+      rights: auth.rights,
+      provider: auth.provider,
+    };
     const homePage = await browser.newPage({ viewport: { width: 390, height: 1200 }, locale: "zh-CN" });
     await homePage.goto(`${baseUrl}/#/home`, { waitUntil: "domcontentloaded" });
     await homePage.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);

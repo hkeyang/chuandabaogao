@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowLeft,
@@ -32,13 +32,14 @@ import "./styles.css";
 import { ASSETS, DEFAULT_ADMIN, DEFAULT_PRODUCTS, PAYWALL_PACKAGES, PERSONAS, REPORT_TYPES, PREFERENCE_ASSETS, preferenceSections } from "./data";
 import type { AdminState, AdminUser, AuditLog, Coupon, PayChannel, PaywallPackage, PersonaId, PreferenceState, Product, ProductId, ReportType, ReportTypeId, Rights, UserReport } from "./types";
 
-type Route = "home" | "purchase" | "pay" | "success" | "select" | "upload" | "preferences" | "preanalysis" | "confirm" | "progress" | "result" | "admin";
+type Route = "home" | "purchase" | "pay" | "success" | "cancel" | "select" | "upload" | "preferences" | "preanalysis" | "confirm" | "progress" | "result" | "admin";
 type Toast = { id: number; text: string };
-type PaywallState = { open: boolean; reason?: string };
 type PayingState = { packageId: string; channel: PayChannel } | null;
 type AuthUser = { id: string; phone: string; masked_phone?: string; display_name: string };
 type AuthRequiredReason = "pay" | "generate" | null;
-const ALLOWED_ROUTES: Route[] = ["home", "purchase", "pay", "success", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
+type GenerationStatus = "idle" | "starting" | "running" | "completed" | "failed";
+const ALLOWED_ROUTES: Route[] = ["home", "purchase", "pay", "success", "cancel", "select", "upload", "preferences", "preanalysis", "confirm", "progress", "result", "admin"];
+const UNSAFE_ENTRY_ROUTES: Route[] = ["confirm", "progress", "result"];
 type PreAnalysis = {
   id: string;
   reportType: ReportTypeId;
@@ -346,6 +347,10 @@ interface AppState {
   uploadErrorMessage?: string;
   isGenerating: boolean;
   generationError?: string;
+  generationIntentId?: string;
+  generationStartedAt?: string;
+  generationReportType?: ReportTypeId;
+  generationStatus: GenerationStatus;
   preAnalysis?: PreAnalysis;
   isPreAnalyzing: boolean;
   preAnalysisError?: string;
@@ -427,10 +432,35 @@ function getClientId() {
   return id;
 }
 
+function randomClientId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isActiveGenerationStatus(status: unknown): status is GenerationStatus {
+  return status === "starting" || status === "running" || status === "completed" || status === "failed";
+}
+
+function fallbackRouteForDraft(saved: Partial<AppState> | null | undefined): Route {
+  if (saved?.preAnalysis && typeof saved.preAnalysis === "object") return "preanalysis";
+  if (saved?.uploadStatus === "success" || typeof saved?.photoDataUrl === "string") return "preferences";
+  return "home";
+}
+
+function sanitizeInitialRoute(requested: Route, saved: Partial<AppState> | null | undefined): Route {
+  if (!UNSAFE_ENTRY_ROUTES.includes(requested)) return requested;
+  if (requested === "confirm" && saved?.preAnalysis) return requested;
+  const hasGenerationIntent = typeof saved?.generationIntentId === "string"
+    && (saved.generationStatus === "completed" || saved.generationStatus === "failed")
+    && saved.generationReportType === saved.reportType;
+  if ((requested === "progress" || requested === "result") && hasGenerationIntent) return requested;
+  return fallbackRouteForDraft(saved);
+}
+
 function loadState(): AppState {
   const params = new URLSearchParams(window.location.search);
+  const requestedRoute = routeFromHash();
   const fallback: AppState = {
-    route: routeFromHash(),
+    route: sanitizeInitialRoute(requestedRoute, null),
     clientId: getClientId(),
     rights: { topic: 0, comprehensive: 0 },
     reportType: "comprehensive",
@@ -449,6 +479,10 @@ function loadState(): AppState {
     uploadErrorMessage: undefined,
     isGenerating: false,
     generationError: undefined,
+    generationIntentId: undefined,
+    generationStartedAt: undefined,
+    generationReportType: undefined,
+    generationStatus: "idle",
     preAnalysis: undefined,
     isPreAnalyzing: false,
     preAnalysisError: undefined,
@@ -489,17 +523,30 @@ function loadState(): AppState {
   }
   try {
     const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+    const safeSaved = saved && typeof saved === "object" ? saved as Partial<AppState> : null;
+    const savedGenerationStatus = isActiveGenerationStatus(safeSaved?.generationStatus) ? safeSaved.generationStatus : "idle";
+    const canResumeGeneration = Boolean(
+      safeSaved?.generationIntentId
+      && (savedGenerationStatus === "completed" || savedGenerationStatus === "failed")
+      && safeSaved.generationReportType === safeSaved.reportType
+      && requestedRoute === "progress",
+    );
     return saved ? {
       ...fallback,
       ...saved,
-      route: fallback.route,
+      route: sanitizeInitialRoute(requestedRoute, safeSaved),
       admin: { ...DEFAULT_ADMIN, ...saved.admin },
       preferences: normalizePreferences(saved.preferences),
       uploadStatus: saved.uploadStatus || fallback.uploadStatus,
       photoCheckResult: saved.photoCheckResult,
       uploadErrorMessage: saved.uploadErrorMessage,
-      isGenerating: fallback.route === "progress" ? Boolean(saved.isGenerating) : false,
-      generationError: typeof saved.generationError === "string" ? saved.generationError : undefined,
+      progress: canResumeGeneration ? Number(saved.progress || 0) : 0,
+      isGenerating: false,
+      generationError: canResumeGeneration && typeof saved.generationError === "string" ? saved.generationError : undefined,
+      generationIntentId: canResumeGeneration ? String(saved.generationIntentId) : undefined,
+      generationStartedAt: canResumeGeneration && typeof saved.generationStartedAt === "string" ? saved.generationStartedAt : undefined,
+      generationReportType: canResumeGeneration ? saved.generationReportType : undefined,
+      generationStatus: canResumeGeneration ? savedGenerationStatus : "idle",
       photoDataUrl: typeof saved.photoDataUrl === "string" ? saved.photoDataUrl : undefined,
       clientId: typeof saved.clientId === "string" ? saved.clientId : fallback.clientId,
       preAnalysis: saved.preAnalysis,
@@ -847,10 +894,33 @@ function isCurrentPreAnalysis(analysis: PreAnalysis | undefined, reportTypeId: R
   return ["整体判断", "当前优势", "优先优化"].every((title) => titles.includes(title));
 }
 
+function hasCurrentPreAnalysis(state: AppState) {
+  return isCurrentPreAnalysis(state.preAnalysis, state.reportType);
+}
+
+function hasUploadedPhoto(state: AppState) {
+  return state.uploadStatus === "success" || Boolean(state.photoDataUrl);
+}
+
+function draftFallbackRoute(state: AppState): Route {
+  if (hasCurrentPreAnalysis(state)) return "preanalysis";
+  if (hasUploadedPhoto(state)) return "preferences";
+  return "home";
+}
+
+function canShowProgress(state: AppState) {
+  return Boolean(
+    state.generationIntentId
+    && isActiveGenerationStatus(state.generationStatus)
+    && state.generationReportType === state.reportType
+    && state.authToken
+    && state.user
+  );
+}
+
 function App() {
   const [state, setState] = useState<AppState>(loadState);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [paywall, setPaywall] = useState<PaywallState>({ open: false });
   const [paying, setPaying] = useState<PayingState>(null);
   const payingLockRef = useRef<PayingState>(null);
   const generationSeqRef = useRef(0);
@@ -889,13 +959,13 @@ function App() {
   const showToast = (text: string) => setToast({ id: Date.now(), text });
   const authHeaders = (): Record<string, string> => state.authToken ? { authorization: `Bearer ${state.authToken}` } : {};
   async function syncMe(token = state.authToken) {
-    if (!token) return;
+    if (!token) return null;
     const response = await fetch("/api/me", { headers: { authorization: `Bearer ${token}` } });
     const data = await response.json().catch(() => ({} as { user?: AuthUser; rights?: Rights }));
     if (!response.ok) {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       setState((s) => ({ ...s, authToken: "", user: undefined, rights: { topic: 0, comprehensive: 0 } }));
-      return;
+      return null;
     }
     setState((s) => ({
       ...s,
@@ -903,14 +973,63 @@ function App() {
       authToken: token,
       rights: data.rights || s.rights,
     }));
+    return data;
   }
-  const nav = (route: Route) => {
+  const nav = useCallback((route: Route) => {
     window.location.hash = `/${route}`;
     setState((s) => ({ ...s, route }));
-  };
+  }, []);
   const products = [...state.admin.products].filter((p) => p.enabled).sort((a, b) => a.sort - b.sort);
   const reportType = REPORT_TYPES.find((item) => item.id === state.reportType) || REPORT_TYPES[0];
   const showComprehensiveReport = state.rights.comprehensive > 0;
+
+  useEffect(() => {
+    if (state.route === "progress" && !canShowProgress(state)) {
+      const next = draftFallbackRoute(state);
+      setState((s) => ({
+        ...s,
+        route: next,
+        progress: 0,
+        isGenerating: false,
+        generationError: undefined,
+        generationIntentId: undefined,
+        generationStartedAt: undefined,
+        generationReportType: undefined,
+        generationStatus: "idle",
+      }));
+      window.history.replaceState(null, "", `#/${next}`);
+      if (!state.authToken || !state.user) setState((s) => ({ ...s, authRequiredReason: "generate" }));
+      return;
+    }
+    if (state.route === "result" && !state.reports.length) {
+      const next = draftFallbackRoute(state);
+      setState((s) => ({ ...s, route: next }));
+      window.history.replaceState(null, "", `#/${next}`);
+      return;
+    }
+    if (state.route === "preanalysis" && !hasUploadedPhoto(state)) {
+      nav("upload");
+      return;
+    }
+    if (state.route === "confirm") {
+      if (!hasUploadedPhoto(state)) {
+        nav("upload");
+        return;
+      }
+      if (!hasCurrentPreAnalysis(state)) {
+        nav("preanalysis");
+        return;
+      }
+      if (!state.authToken || !state.user) {
+        setState((s) => ({ ...s, route: "preanalysis", authRequiredReason: "generate" }));
+        window.history.replaceState(null, "", "#/preanalysis");
+        return;
+      }
+      if (state.rights[reportType.rightKey] <= 0) {
+        nav("pay");
+      }
+    }
+  }, [state.route, state.authToken, state.user, state.generationIntentId, state.generationStatus, state.generationReportType, state.reportType, state.rights.topic, state.rights.comprehensive, state.reports.length, state.uploadStatus, state.photoDataUrl, state.preAnalysis]);
 
   function redeem(codeInput: string) {
     const code = codeInput.trim().toUpperCase();
@@ -939,27 +1058,51 @@ function App() {
   }
 
   function chooseReport(id: ReportTypeId) {
-    setState((s) => ({ ...s, reportType: id, route: "upload", isGenerating: false, generationError: undefined, preAnalysis: undefined, preAnalysisError: undefined }));
+    setState((s) => ({
+      ...s,
+      reportType: id,
+      route: "upload",
+      isGenerating: false,
+      generationError: undefined,
+      generationIntentId: undefined,
+      generationStartedAt: undefined,
+      generationReportType: undefined,
+      generationStatus: "idle",
+      preAnalysis: undefined,
+      preAnalysisError: undefined,
+    }));
   }
 
-function startGenerate() {
+  function startGenerate() {
   if (state.isGenerating) return showToast("正在生成中，请勿重复点击");
-  if (!state.photoUrl) return showToast("请先上传照片");
-  if (!state.preAnalysis || state.preAnalysis.reportType !== reportType.id) {
+  if (!hasUploadedPhoto(state)) return showToast("请先上传照片");
+  if (!hasCurrentPreAnalysis(state)) {
     nav("preanalysis");
     return;
   }
-  if (!state.privacyAccepted) return showToast("请先勾选本人照片确认");
+  if (!state.user || !state.authToken) {
+    setState((s) => ({ ...s, authRequiredReason: "generate" }));
+    nav("preanalysis");
+    return;
+  }
   if (state.rights[reportType.rightKey] <= 0) {
-    if (!state.user || !state.authToken) {
-      setState((s) => ({ ...s, authRequiredReason: "generate" }));
-      return;
-    }
     nav("pay");
     return;
   }
-    generationSeqRef.current += 1;
-    setState((s) => ({ ...s, progress: 8, route: "progress", isGenerating: true, generationError: undefined }));
+  if (!state.privacyAccepted) return showToast("请先勾选本人照片确认");
+  const intentId = randomClientId("gen");
+  generationSeqRef.current += 1;
+  setState((s) => ({
+    ...s,
+    progress: 8,
+    route: "progress",
+    isGenerating: true,
+    generationError: undefined,
+    generationIntentId: intentId,
+    generationStartedAt: now(),
+    generationReportType: reportType.id,
+    generationStatus: "starting",
+  }));
   }
 
   async function createPreAnalysis() {
@@ -1045,7 +1188,7 @@ function startGenerate() {
   }
 
   useEffect(() => {
-    if (state.route !== "progress" || !state.isGenerating) return;
+    if (state.route !== "progress" || !state.isGenerating || !canShowProgress(state)) return;
     const generationId = generationSeqRef.current;
     const controller = new AbortController();
     const steps = [18, 31, 48, 63, 78, 91, 94];
@@ -1064,6 +1207,7 @@ function startGenerate() {
       const personaId = pickPersona(state.preferences.stylePreferences, state.preferences.targetScenes);
       const prompt = buildPrompt(type, personaId, state.preferences);
       try {
+        setState((s) => ({ ...s, generationStatus: "running" }));
         const response = await fetch("/api/reports/generate", {
           method: "POST",
           signal: controller.signal,
@@ -1093,6 +1237,41 @@ function startGenerate() {
           }
         })() : {};
         if (!response.ok) {
+          const code = String(data.error || "");
+          if (response.status === 401 || code === "AUTH_REQUIRED") {
+            setState((latest) => ({
+              ...latest,
+              route: "preanalysis",
+              progress: 0,
+              isGenerating: false,
+              generationError: undefined,
+              generationIntentId: undefined,
+              generationStartedAt: undefined,
+              generationReportType: undefined,
+              generationStatus: "idle",
+              authRequiredReason: "generate",
+            }));
+            window.history.replaceState(null, "", "#/preanalysis");
+            showToast("请先登录后再生成报告");
+            return;
+          }
+          if (response.status === 402 || code === "entitlement_required") {
+            setState((latest) => ({
+              ...latest,
+              route: "pay",
+              progress: 0,
+              isGenerating: false,
+              generationError: undefined,
+              generationIntentId: undefined,
+              generationStartedAt: undefined,
+              generationReportType: undefined,
+              generationStatus: "idle",
+              payError: String(data.message || "请先完成支付，再生成完整报告。"),
+            }));
+            window.history.replaceState(null, "", "#/pay");
+            showToast("请先完成支付，再生成完整报告");
+            return;
+          }
           throw new Error(String(data.message || data.error || data.raw || `generate failed with HTTP ${response.status}`));
         }
         if (data.status && data.status !== "completed") throw new Error(String(data.message || data.error || "生成失败，请重试，未扣除权益"));
@@ -1125,6 +1304,7 @@ function startGenerate() {
             reports: [report, ...latest.reports],
             isGenerating: false,
             generationError: undefined,
+            generationStatus: "completed",
           };
         });
         window.clearInterval(timer);
@@ -1141,6 +1321,7 @@ function startGenerate() {
           progress: Math.min(latest.progress, 94),
           isGenerating: false,
           generationError: error instanceof Error ? error.message : "生成失败，请重试",
+          generationStatus: "failed",
         }));
         showToast(error instanceof Error ? error.message : "生成失败，请重试");
       }
@@ -1162,6 +1343,7 @@ function startGenerate() {
       case "purchase": return <PurchasePage products={products} nav={nav} />;
       case "pay": return <PayPage state={state} setState={setState} paying={paying} products={products} onCheckout={startCheckout} nav={nav} />;
       case "success": return <SuccessRedirectPage state={state} setState={setState} nav={nav} />;
+      case "cancel": return <CancelRedirectPage setState={setState} nav={nav} />;
       case "select": return <SelectPage rights={state.rights} chooseReport={chooseReport} nav={nav} />;
       case "upload": return <UploadPage state={state} setState={setState} nav={nav} showToast={showToast} />;
       case "preferences": return <PreferencesPage state={state} setState={setState} nav={nav} showToast={showToast} />;
@@ -1183,11 +1365,24 @@ function startGenerate() {
   return (
     <>
       <Shell state={state} nav={nav}>{page}</Shell>
-      {paywall.open && <PaywallSheet paying={paying} reason={paywall.reason} onClose={() => setPaywall({ open: false })} onCheckout={startCheckout} />}
       {state.authRequiredReason && <LoginSheet state={state} setState={setState} onAuthed={(token) => {
-        void syncMe(token);
-        setState((s) => ({ ...s, authRequiredReason: null, route: s.authRequiredReason === "generate" || s.authRequiredReason === "pay" ? "pay" : s.route }));
-        window.location.hash = "/pay";
+        void (async () => {
+          const me = await syncMe(token);
+          setState((s) => {
+            const type = REPORT_TYPES.find((item) => item.id === s.reportType) || REPORT_TYPES[0];
+            const rights = me?.rights || s.rights;
+            const nextRoute: Route = rights[type.rightKey] > 0 && hasCurrentPreAnalysis(s) ? "confirm" : "pay";
+            window.location.hash = `/${nextRoute}`;
+            return {
+              ...s,
+              authRequiredReason: null,
+              route: nextRoute,
+              rights,
+              user: me?.user || s.user,
+              authToken: token,
+            };
+          });
+        })();
       }} onClose={() => setState((s) => ({ ...s, authRequiredReason: null }))} showToast={showToast} />}
       {toast && <div className="toast show">{toast.text}</div>}
     </>
@@ -1422,29 +1617,32 @@ function SuccessRedirectPage({
   useEffect(() => {
     let cancelled = false;
     const syncRights = async () => {
+      let nextRoute: Route | null = null;
       try {
+        if (!state.authToken) {
+          if (!cancelled) {
+            setState((s) => ({ ...s, authRequiredReason: "pay", payError: "请先登录后同步支付权益。" }));
+            nextRoute = "pay";
+          }
+          return;
+        }
         const sessionId = new URLSearchParams(window.location.search).get("session_id") || hashSearchParams().get("session_id") || "";
         if (sessionId) {
           await fetch(`/api/orders/by-session/${encodeURIComponent(sessionId)}`).catch(() => undefined);
         }
-        const response = state.authToken
-          ? await fetch("/api/me", { headers: { authorization: `Bearer ${state.authToken}` } })
-          : await fetch(`/api/me/entitlements?client_id=${encodeURIComponent(state.clientId)}`);
-        const data = await response.json().catch(() => ({} as { rights?: Rights; user?: AuthUser; entitlements?: Array<{ topic_remaining?: number; comprehensive_remaining?: number }> }));
+        const response = await fetch("/api/me", { headers: { authorization: `Bearer ${state.authToken}` } });
+        const data = await response.json().catch(() => ({} as { rights?: Rights; user?: AuthUser }));
         if (response.ok) {
-          const rights = data.rights || (Array.isArray(data.entitlements)
-            ? data.entitlements.reduce((acc: { topic: number; comprehensive: number }, item: { topic_remaining?: number; comprehensive_remaining?: number }) => ({
-              topic: acc.topic + Number(item.topic_remaining || 0),
-              comprehensive: acc.comprehensive + Number(item.comprehensive_remaining || 0),
-            }), { topic: 0, comprehensive: 0 })
-            : undefined);
+          const rights = data.rights || state.rights;
           if (!cancelled) {
             setState((s) => ({ ...s, rights: rights || s.rights, user: data.user || s.user }));
           }
+          const type = REPORT_TYPES.find((item) => item.id === state.reportType) || REPORT_TYPES[0];
+          nextRoute = rights[type.rightKey] > 0 && state.preAnalysis ? "confirm" : "pay";
+          return;
         }
       } finally {
-        const hasActivePhoto = state.uploadStatus === "success" || Boolean(state.preAnalysis);
-        if (!cancelled) nav(hasActivePhoto ? (state.preAnalysis ? "preanalysis" : "confirm") : "select");
+        if (!cancelled) nav(nextRoute || (state.preAnalysis ? "preanalysis" : "select"));
       }
     };
     void syncRights();
@@ -1453,6 +1651,20 @@ function SuccessRedirectPage({
     };
   }, [nav, setState, state.authToken, state.clientId, state.preAnalysis, state.uploadStatus]);
   return <main className="page success-page" aria-live="polite">支付成功，正在更新权益...</main>;
+}
+
+function CancelRedirectPage({
+  setState,
+  nav,
+}: {
+  setState: React.Dispatch<React.SetStateAction<AppState>>;
+  nav: (r: Route) => void;
+}) {
+  useEffect(() => {
+    setState((s) => ({ ...s, payError: "支付已取消，请重新选择支付方式。", route: "pay" }));
+    nav("pay");
+  }, [nav, setState]);
+  return <main className="page success-page" aria-live="polite">支付已取消，正在返回支付页...</main>;
 }
 
 function RightsPills({ rights, showComprehensiveReport = true }: { rights: Rights; showComprehensiveReport?: boolean }) {
@@ -1593,7 +1805,17 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
   const openPicker = () => fileRef.current?.click();
 
   const updateUploadState = (next: Partial<AppState>) => {
-    setState((s) => ({ ...s, ...next }));
+    setState((s) => ({
+      ...s,
+      ...next,
+      progress: 0,
+      isGenerating: false,
+      generationError: undefined,
+      generationIntentId: undefined,
+      generationStartedAt: undefined,
+      generationReportType: undefined,
+      generationStatus: "idle",
+    }));
   };
 
   const handleFile = async (file?: File) => {
@@ -1616,6 +1838,8 @@ function UploadPage({ state, setState, nav, showToast }: { state: AppState; setS
       photoName: file.name,
       photoUrl: previewUrl,
       photoDataUrl: dataUrl,
+      preAnalysis: undefined,
+      preAnalysisError: undefined,
       isGenerating: false,
     });
     try {
@@ -2082,13 +2306,13 @@ function PreAnalysisPage({
         <div>
           <span className="preanalysis-pay-card__eyebrow">下一步</span>
           <h2>{hasRight ? "使用已购权益生成完整报告" : `生成完整报告${recommendedProduct ? ` ¥${recommendedProduct.price}` : ""}`}</h2>
-          <p>{hasRight ? "确认本人照片后开始生成，成功后才扣权益。" : "购买成功后会回到本页，重新点击后再生成。"}</p>
+          <p>{hasRight ? "登录并确认本人照片后开始生成，成功后才扣权益。" : "先登录并完成支付，支付成功后再确认生成。"}</p>
         </div>
         <button
           className="confirm-primary-btn"
           onClick={() => {
             if (!analysis || state.isPreAnalyzing) return;
-            if (!hasRight) {
+            if (!state.user || !state.authToken || !hasRight) {
               onNeedPayment();
               return;
             }
@@ -2096,7 +2320,7 @@ function PreAnalysisPage({
           }}
           disabled={!analysis || state.isPreAnalyzing}
         >
-          <span className="confirm-primary-btn__label">{hasRight ? "生成完整报告" : "选择套餐并支付"}</span>
+          <span className="confirm-primary-btn__label">去生成完整报告</span>
           <Sparkles size={18} />
         </button>
         <button className="confirm-secondary-btn" onClick={() => nav("upload")}>重新上传照片</button>
@@ -2407,9 +2631,9 @@ function ConfirmPage({
     { key: `range-${state.preferences.changeIntensity}`, label: preferenceLabel("range", state.preferences.changeIntensity) },
   ];
   const isInvalidPhoto = state.uploadStatus === "error" || state.photoCheckResult === "failed";
-  const hasPhoto = Boolean(state.photoUrl);
+  const hasPhoto = hasUploadedPhoto(state);
   const hasRight = state.rights[type.rightKey] > 0;
-  const canProceed = hasPhoto && !isInvalidPhoto && state.privacyAccepted && !state.isGenerating;
+  const canProceed = hasPhoto && !isInvalidPhoto && state.privacyAccepted && !state.isGenerating && hasRight && Boolean(state.user && state.authToken) && hasCurrentPreAnalysis(state);
   return (
     <main className="page confirm-generate-page">
       <img className="confirm-bg confirm-bg-left" src={CONFIRM_GENERATE_ASSETS.decoSmall} alt="" aria-hidden="true" />

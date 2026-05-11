@@ -263,7 +263,7 @@ async function body<T = Json>(request: Request): Promise<T> {
 function checkoutReturnUrl(env: Env, key: "success" | "cancel") {
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, "");
   if (key === "success") return env.STRIPE_SUCCESS_URL || `${base}/#/success?session_id={CHECKOUT_SESSION_ID}`;
-  return env.STRIPE_CANCEL_URL || `${base}/#/purchase`;
+  return env.STRIPE_CANCEL_URL || `${base}/#/cancel`;
 }
 
 function reportAssetPath(reportId: string, kind: "report" | "cover" | "summary") {
