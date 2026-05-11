@@ -281,6 +281,49 @@ async function stripeRequest(env: Env, path: string, params: URLSearchParams) {
   return payload;
 }
 
+function checkoutErrorResponse(error: unknown, channel = "") {
+  const detail = error instanceof Error ? error.message : String(error || "checkout_failed");
+  const normalized = detail.toLowerCase();
+  if (isMissingTableError(error)) return setupRequiredResponse();
+  if (detail === "stripe_secret_missing") {
+    return json({
+      error: "STRIPE_SECRET_MISSING",
+      message: "支付密钥尚未配置，请稍后再试。",
+      channel,
+    }, { status: 503 });
+  }
+  if (normalized.includes("payment method type provided") || normalized.includes("activated in your dashboard")) {
+    return json({
+      error: "STRIPE_PAYMENT_METHOD_NOT_ENABLED",
+      message: "当前支付方式尚未在 Stripe 启用或审批通过，请选择其他支付方式或稍后再试。",
+      channel,
+      stripe_error: detail,
+    }, { status: 424 });
+  }
+  if (normalized.includes("currency") || normalized.includes("country combination")) {
+    return json({
+      error: "STRIPE_PAYMENT_METHOD_UNSUPPORTED",
+      message: "当前支付方式与币种或账户地区配置不匹配，请稍后再试。",
+      channel,
+      stripe_error: detail,
+    }, { status: 424 });
+  }
+  if (normalized.includes("total amount must convert to at least") || normalized.includes("amount must be at least")) {
+    return json({
+      error: "STRIPE_AMOUNT_BELOW_MINIMUM",
+      message: "当前套餐金额低于 Stripe 对该支付方式的最低金额要求，请选择更高金额套餐或调整定价。",
+      channel,
+      stripe_error: detail,
+    }, { status: 424 });
+  }
+  console.error("[orders/checkout] failed", { channel, message: detail });
+  return json({
+    error: "CHECKOUT_CREATE_FAILED",
+    message: "订单创建失败，请稍后重试。",
+    channel,
+  }, { status: 502 });
+}
+
 async function retrieveCheckoutSession(env: Env, sessionId: string) {
   if (!env.STRIPE_SECRET_KEY) throw new Error("stripe_secret_missing");
   const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
@@ -835,7 +878,8 @@ async function handleApi(request: Request, env: Env, url: URL) {
     params.set("metadata[client_id]", clientId);
     params.set("metadata[platform]", "web");
 
-    const session = await stripeRequest(env, "/checkout/sessions", params) as Json;
+    const session = await stripeRequest(env, "/checkout/sessions", params).catch((error) => checkoutErrorResponse(error, channel)) as Json | Response;
+    if (session instanceof Response) return session;
     const checkoutSessionId = String(session.id || "");
     const checkoutUrl = String(session.url || "");
     if (!checkoutSessionId || !checkoutUrl) throw new Error("stripe_checkout_session_missing");
@@ -1136,6 +1180,17 @@ export default {
         return json({ error: "not_found" }, { status: 404 });
       } catch (err) {
         if (isMissingTableError(err)) return setupRequiredResponse();
+        if (request.method === "POST" && url.pathname === "/api/orders/checkout") {
+          let channel = "";
+          try {
+            const cloned = request.clone();
+            const input = await body(cloned);
+            channel = String(input.channel || "");
+          } catch {
+            // Keep the diagnostic response useful even when the body cannot be read twice.
+          }
+          return checkoutErrorResponse(err, channel);
+        }
         const message = err instanceof Error ? err.message : "internal_error";
         console.error("[api] unhandled error", { path: url.pathname, message });
         return json({ error: "internal_error", message: "服务暂时不可用，请稍后重试。" }, { status: 500 });
